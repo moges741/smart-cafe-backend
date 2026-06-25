@@ -1,0 +1,62 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  users User[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  employee Employee?
+
+  @@index([email])
+}
+
+model Branch {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  timezone  String   @default("Africa/Addis_Ababa")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  employees Employee[]
+
+  @@index([isActive])
+}
+
+model Employee {
+  id        String   @id @default(uuid())
+  role      String   // cashier | waiter | barista | kitchen | manager | admin
+  hireDate  DateTime @default(now())
+
+  userId   String @unique
+  user     User   @relation(fields: [userId], references: [id])
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  @@index([branchId])
+}
