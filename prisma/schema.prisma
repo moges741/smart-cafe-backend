@@ -8,40 +8,40 @@ datasource db {
   provider = "postgresql"
 }
 
+
 model Role {
   id          String   @id @default(uuid())
   name        String   @unique
   description String?
   createdAt   DateTime @default(now())
-
-  users User[]
+  users       User[]
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String    @id @default(uuid())
+  email        String    @unique
   passwordHash String
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  roleId String
-  role   Role   @relation(fields: [roleId], references: [id])
-
-  employee Employee?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  roleId       String
+  role         Role      @relation(fields: [roleId], references: [id])
+  employee     Employee?
+  orders       Order[]
 
   @@index([email])
 }
 
 model Branch {
-  id        String   @id @default(uuid())
+  id        String     @id @default(uuid())
   name      String
   address   String?
-  timezone  String   @default("Africa/Addis_Ababa")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-
+  timezone  String     @default("Africa/Addis_Ababa")
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
   employees Employee[]
+  orders    Order[]
+  products  Product[]
 
   @@index([isActive])
 }
@@ -50,12 +50,132 @@ model Employee {
   id       String   @id @default(uuid())
   role     String
   hireDate DateTime @default(now())
-
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id])
-
+  userId   String   @unique
+  user     User     @relation(fields: [userId], references: [id])
   branchId String
-  branch   Branch @relation(fields: [branchId], references: [id])
+  branch   Branch   @relation(fields: [branchId], references: [id])
 
   @@index([branchId])
+}
+
+// ── Phase 3 models ───────────────────────────────
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  imageUrl    String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  products    Product[]
+
+  @@index([isActive])
+}
+
+model Product {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  price       Decimal     @db.Decimal(10, 2)
+  imageUrl    String?
+  isAvailable Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id])
+
+  branchId    String
+  branch      Branch      @relation(fields: [branchId], references: [id])
+
+  orderItems  OrderItem[]
+
+  @@index([branchId, isAvailable])
+  @@index([categoryId])
+}
+
+// Order status follows a strict state machine:
+// pending → confirmed → in_kitchen → ready → completed
+//         ↘ cancelled (from pending or confirmed only)
+enum OrderStatus {
+  pending
+  confirmed
+  in_kitchen
+  ready
+  completed
+  cancelled
+}
+
+enum OrderType {
+  dine_in
+  takeaway
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  orderNumber String      @unique  // human-readable e.g. "ORD-0042"
+  status      OrderStatus @default(pending)
+  type        OrderType   @default(dine_in)
+  tableNumber Int?
+  notes       String?
+  totalAmount Decimal     @db.Decimal(10, 2) @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  customerId  String
+  customer    User        @relation(fields: [customerId], references: [id])
+
+  branchId    String
+  branch      Branch      @relation(fields: [branchId], references: [id])
+
+  items       OrderItem[]
+  payment     Payment?
+
+  @@index([branchId, status])
+  @@index([customerId])
+  @@index([orderNumber])
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  quantity  Int
+  unitPrice Decimal  @db.Decimal(10, 2)  // snapshot of price at time of order
+  notes     String?
+  createdAt DateTime @default(now())
+
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+enum PaymentMethod {
+  cash
+  card
+  mobile_money
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  amount        Decimal       @db.Decimal(10, 2)
+  method        PaymentMethod
+  status        PaymentStatus @default(pending)
+  gatewayRef    String?       // reference from payment gateway if used
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  orderId       String        @unique  // one payment per order
+  order         Order         @relation(fields: [orderId], references: [id])
+
+  @@index([status])
 }
