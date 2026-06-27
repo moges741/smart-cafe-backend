@@ -1,17 +1,15 @@
-import { IsEmail, IsString, MinLength, IsUUID } from 'class-validator';
+import { IsEmail, IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
+// Public registration — no roleId needed
+// Role is assigned automatically by the server
 export class RegisterDto {
-  @ApiProperty({ example: 'newstaff@smartcafe.com' })
+  @ApiProperty({ example: 'john@example.com' })
   @IsEmail()
-  email!: string;
+  email: string;
 
   @ApiProperty({ example: 'SecurePass123!' })
   @IsString()
   @MinLength(8)
-  password!: string;
-
-  @ApiProperty({ example: 'uuid-of-the-role' })
-  @IsUUID()
-  roleId!: string;
+  password: string;
 }

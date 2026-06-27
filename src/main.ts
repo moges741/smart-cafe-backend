@@ -30,14 +30,15 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
-  app.use(cookieParser());
+  app.use(cookieParser());//correct this syntax error
+
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
   console.log(`Smart Cafe API running on http://localhost:${port}/api/v1`);
   console.log(`Swagger docs at http://localhost:${port}/api/docs`);
   app.enableCors({
-  origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+  origin: [process.env.FRONTEND_URL ?? 'http://localhost:5173', 'http://localhost:3000'],
   credentials: true, // this tells the browser to include cookies in cross-origin requests
 });
 }

@@ -1,35 +1,26 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateUserDto } from './dto/create-user.dto';
+import { CreateStaffDto } from '../auth/dto/create-staff.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateUserDto) {
-    // Check if email already exists
-    const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+  // Public registration — role is always "customer"
+  async createCustomer(email: string, password: string) {
+    await this.checkEmailUnique(email);
+
+    const customerRole = await this.prisma.role.findUnique({
+      where: { name: 'customer' },
     });
+    if (!customerRole) throw new Error('Customer role not found. Did you run the seed?');
 
-    if (existing) {
-      throw new ConflictException('Email already registered');
-    }
-
-    // Hash the password — never store plain text
-    // bcrypt's second argument (10) is the "salt rounds" — higher = more secure but slower
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
     return this.prisma.user.create({
-      data: {
-        email: dto.email,
-        passwordHash,
-        roleId: dto.roleId,
-      },
+      data: { email, passwordHash, roleId: customerRole.id },
       select: {
-        // select: true/false controls what gets returned
-        // We NEVER return passwordHash to the caller
         id: true,
         email: true,
         isActive: true,
@@ -37,6 +28,34 @@ export class UsersService {
         role: { select: { id: true, name: true } },
       },
     });
+  }
+
+  // Admin creates staff — role looked up by name
+  async createStaff(dto: CreateStaffDto) {
+    await this.checkEmailUnique(dto.email);
+
+    const role = await this.prisma.role.findUnique({
+      where: { name: dto.role },
+    });
+    if (!role) throw new NotFoundException(`Role "${dto.role}" not found`);
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    return this.prisma.user.create({
+      data: { email: dto.email, passwordHash, roleId: role.id },
+      select: {
+        id: true,
+        email: true,
+        isActive: true,
+        createdAt: true,
+        role: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  private async checkEmailUnique(email: string) {
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) throw new ConflictException('Email already registered');
   }
 
   async findByEmail(email: string) {
@@ -56,7 +75,6 @@ export class UsersService {
         role: { select: { id: true, name: true } },
       },
     });
-
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
