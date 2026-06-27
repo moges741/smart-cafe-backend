@@ -30,9 +30,7 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
-  app.use(cookieParser());//correct this syntax error
-
-
+  app.use(cookieParser());
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
   console.log(`Smart Cafe API running on http://localhost:${port}/api/v1`);
