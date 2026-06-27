@@ -9,20 +9,25 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('Seeding database...');
+  console.log('🌱 Seeding database...');
 
-  const roles = ['admin', 'manager', 'cashier', 'waiter', 'barista', 'kitchen'];
+  // Create roles
+  const roleNames = ['admin', 'manager', 'cashier', 'waiter', 'barista', 'kitchen', 'customer'];
 
-  for (const name of roles) {
+  for (const name of roleNames) {
     await prisma.role.upsert({
       where: { name },
       update: {},
       create: { name },
     });
-    console.log(`Role "${name}" ready`);
+    console.log(`  ✓ Role "${name}"`);
   }
 
+  // Get admin role id
   const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
+  if (!adminRole) throw new Error('Admin role not found after seeding');
+
+  // Create default admin user
   const passwordHash = await bcrypt.hash('Admin@123456', 10);
 
   await prisma.user.upsert({
@@ -31,14 +36,17 @@ async function main() {
     create: {
       email: 'admin@smartcafe.com',
       passwordHash,
-      roleId: adminRole!.id,
+      roleId: adminRole.id,
     },
   });
 
-  console.log('Default admin — admin@smartcafe.com / Admin@123456');
-  console.log('Seeding complete.');
+  console.log('  ✓ Admin user → admin@smartcafe.com / Admin@123456');
+  console.log('✅ Seeding complete.');
 }
 
 main()
-  .catch(console.error)
+  .catch((e) => {
+    console.error('❌ Seed failed:', e);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());
