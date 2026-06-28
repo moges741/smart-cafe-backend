@@ -39,7 +39,19 @@ async function main() {
       roleId: adminRole.id,
     },
   });
+// Create default branch
+  const branch = await prisma.branch.upsert({
+    where: { id: 'default-branch-id-placeholder' },
+    update: {},
+    create: {
+      id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', // fixed UUID so seed is idempotent
+      name: 'Main Branch',
+      address: 'Bole Road, Addis Ababa',
+      timezone: 'Africa/Addis_Ababa',
+    },
+  });
 
+  console.log(`  ✓ Branch "${branch.name}" — id: ${branch.id}`);
   console.log('  ✓ Admin user → admin@smartcafe.com / Admin@123456');
   console.log('✅ Seeding complete.');
 }
