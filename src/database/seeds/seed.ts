@@ -8,10 +8,12 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 
+const DEFAULT_BRANCH_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Create roles
+  // ── Roles ────────────────────────────────────────────
   const roleNames = ['admin', 'manager', 'cashier', 'waiter', 'barista', 'kitchen', 'customer'];
 
   for (const name of roleNames) {
@@ -23,11 +25,10 @@ async function main() {
     console.log(`  ✓ Role "${name}"`);
   }
 
-  // Get admin role id
+  // ── Admin user ────────────────────────────────────────
   const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
   if (!adminRole) throw new Error('Admin role not found after seeding');
 
-  // Create default admin user
   const passwordHash = await bcrypt.hash('Admin@123456', 10);
 
   await prisma.user.upsert({
@@ -39,20 +40,22 @@ async function main() {
       roleId: adminRole.id,
     },
   });
-// Create default branch
+  console.log('  ✓ Admin user → admin@smartcafe.com / Admin@123456');
+
+  // ── Default branch ────────────────────────────────────
+  // where.id and create.id MUST be the same value
   const branch = await prisma.branch.upsert({
-    where: { id: 'default-branch-id-placeholder' },
-    update: {},
+    where: { id: DEFAULT_BRANCH_ID },   // ← look up by this
+    update: {},                          // ← if found, do nothing
     create: {
-      id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', // fixed UUID so seed is idempotent
+      id: DEFAULT_BRANCH_ID,            // ← if not found, create with this same id
       name: 'Main Branch',
       address: 'Bole Road, Addis Ababa',
       timezone: 'Africa/Addis_Ababa',
     },
   });
-
   console.log(`  ✓ Branch "${branch.name}" — id: ${branch.id}`);
-  console.log('  ✓ Admin user → admin@smartcafe.com / Admin@123456');
+
   console.log('✅ Seeding complete.');
 }
 

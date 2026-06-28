@@ -94,9 +94,7 @@ model Product {
   @@index([categoryId])
 }
 
-// Order status follows a strict state machine:
-// pending → confirmed → in_kitchen → ready → completed
-//         ↘ cancelled (from pending or confirmed only)
+
 enum OrderStatus {
   pending
   confirmed
@@ -152,30 +150,39 @@ model OrderItem {
   @@index([orderId])
 }
 
-enum PaymentStatus {
-  pending
-  completed
-  failed
-  refunded
-}
+
 
 enum PaymentMethod {
-  cash
-  card
-  mobile_money
+  chapa  // all digital payments — Telebirr, CBE Birr, M-Pesa, cards — customer picks on Chapa page
+  cash   // physical cash at the counter, cashier confirms manually
+}
+
+enum PaymentStatus {
+  pending    // initialized but customer hasn't paid yet
+  completed  // money confirmed received
+  failed     // payment was attempted but failed
+  refunded   // money returned to customer
 }
 
 model Payment {
-  id            String        @id @default(uuid())
-  amount        Decimal       @db.Decimal(10, 2)
-  method        PaymentMethod
-  status        PaymentStatus @default(pending)
-  gatewayRef    String?       // reference from payment gateway if used
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                 String        @id @default(uuid())
+  amount             Decimal       @db.Decimal(10, 2)
+  method             PaymentMethod @default(chapa)
+  status             PaymentStatus @default(pending)
 
-  orderId       String        @unique  // one payment per order
-  order         Order         @relation(fields: [orderId], references: [id])
+  // These fields are only filled when method = chapa
+  // They are null when method = cash
+  txRef              String?       @unique  // YOUR reference e.g. "CAFE-ORD-0001-AB12CD34"
+  chapaRef           String?               // Chapa's own internal reference
+  checkoutUrl        String?               // the URL you send the customer to
+  chapaPaymentMethod String?               // which wallet/bank customer used e.g. "telebirr"
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  orderId            String        @unique  // one payment per order
+  order              Order         @relation(fields: [orderId], references: [id])
 
   @@index([status])
+  @@index([txRef])
 }
