@@ -8,7 +8,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { ProductsModule } from './modules/products/products.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { EventsModule } from './modules/events/events.module';
-
+import { PaymentsModule } from './modules/payments/payments.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -18,6 +18,7 @@ import { EventsModule } from './modules/events/events.module';
     BranchesModule,
     CategoriesModule,
     ProductsModule,
+    PaymentsModule,
     OrdersModule,
     EventsModule,
   ],

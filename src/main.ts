@@ -5,7 +5,9 @@ import { AppModule } from './app.module';
 import * as cookieParser from 'cookie-parser';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true, // needed for webhook signature verification
+  });
 
   // Global prefix — all routes start with /api/v1
   app.setGlobalPrefix('api/v1');
