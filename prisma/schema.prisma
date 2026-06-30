@@ -42,7 +42,7 @@ model Branch {
   employees Employee[]
   orders    Order[]
   products  Product[]
-
+  inventories Inventory[]
   @@index([isActive])
 }
 
