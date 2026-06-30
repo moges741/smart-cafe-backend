@@ -28,7 +28,7 @@ model User {
   role         Role      @relation(fields: [roleId], references: [id])
   employee     Employee?
   orders       Order[]
-
+  inventoryLogs InventoryLog[] 
   @@index([email])
 }
 
@@ -89,7 +89,7 @@ model Product {
   branch      Branch      @relation(fields: [branchId], references: [id])
 
   orderItems  OrderItem[]
-
+  inventory    Inventory[]
   @@index([branchId, isAvailable])
   @@index([categoryId])
 }
@@ -128,7 +128,7 @@ model Order {
 
   items       OrderItem[]
   payment     Payment?
-
+  inventoryLogs InventoryLog[]
   @@index([branchId, status])
   @@index([customerId])
   @@index([orderNumber])
@@ -185,4 +185,58 @@ model Payment {
 
   @@index([status])
   @@index([txRef])
+}
+
+model Inventory {
+  id               String   @id @default(uuid())
+  currentQuantity  Int      @default(0)  // how many units currently in stock
+  reorderThreshold Int      @default(10) // alert fires when stock hits this
+  unit             String   @default("units") // "kg", "liters", "units", "grams"
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  productId        String
+  product          Product  @relation(fields: [productId], references: [id])
+
+  branchId         String
+  branch           Branch   @relation(fields: [branchId], references: [id])
+
+  logs             InventoryLog[]
+
+  // One inventory record per product per branch
+  @@unique([productId, branchId])
+  @@index([branchId])
+}
+
+// Every stock movement is recorded here — never deleted
+// This is the audit trail / ledger
+model InventoryLog {
+  id          String            @id @default(uuid())
+  delta       Int               // positive = stock added, negative = stock removed
+  reason      InventoryReason
+  note        String?           // optional human-readable note e.g. "Morning delivery"
+  quantityBefore Int            // snapshot of quantity before this change
+  quantityAfter  Int            // snapshot of quantity after this change
+  createdAt   DateTime          @default(now())
+
+  inventoryId String
+  inventory   Inventory         @relation(fields: [inventoryId], references: [id])
+
+  actorId     String?
+  actor       User?             @relation(fields: [actorId], references: [id])
+
+  // Which order caused this deduction — null for manual adjustments
+  orderId     String?
+  order       Order?            @relation(fields: [orderId], references: [id])
+
+  @@index([inventoryId])
+  @@index([orderId])
+}
+
+enum InventoryReason {
+  order_deduction   // automatic — order was confirmed and paid
+  manual_addition   // manager added stock (delivery arrived)
+  manual_removal    // manager removed stock (wastage, spillage, expiry)
+  count_correction  // physical count didn't match system — corrected
+  opening_stock     // initial stock when inventory record first created
 }

@@ -175,9 +175,7 @@ export class PaymentsService {
     };
   }
 
-  // ─── WEBHOOK HANDLER — Chapa calls this after digital payment ───────────────
-  // This endpoint is PUBLIC — no JWT guard — Chapa calls it, not your frontend
-  // Security comes from the signature verification instead
+  
   async handleWebhook(rawBody: string, signature: string) {
 
     // 1. Verify signature FIRST — before parsing or trusting anything
