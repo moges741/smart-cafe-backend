@@ -9,7 +9,7 @@ import { EventsService } from '../events/events.service';
 import { InitializePaymentDto } from './dto/initialize-payment.dto';
 import { CashConfirmDto } from './dto/cash-confirm.dto';
 import { v4 as uuidv4 } from 'uuid';
-
+import { InventoryService } from '../inventory/inventory.service';
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -19,6 +19,7 @@ export class PaymentsService {
     private readonly chapa:    ChapaService,
     private readonly events:   EventsService,
     private readonly config:   ConfigService,
+    private readonly inventory: InventoryService,
   ) {}
 
   // ─── DIGITAL PAYMENT via Chapa ──────────────────────────────────────────────
@@ -121,7 +122,9 @@ export class PaymentsService {
 
     const order = await this.prisma.order.findUnique({
       where:   { id: dto.orderId },
-      include: { payment: true },
+      include: { payment: true ,
+        items:   true,  
+      },
     });
 
     if (!order) throw new NotFoundException('Order not found');
@@ -156,6 +159,14 @@ export class PaymentsService {
           // txRef, checkoutUrl are null for cash — that's fine, they're optional
         },
       });
+      await this.inventory.deductForOrder(
+  order.id,
+  order.branchId,
+  order.items.map(i => ({
+    productId: i.productId,
+    quantity:  i.quantity,
+  })),
+);
 
       // Move order to confirmed — kitchen can start preparing
       return tx.order.update({
@@ -163,7 +174,11 @@ export class PaymentsService {
         data:    { status: 'confirmed' },
         include: { items: true },
       });
+// After the $transaction block in confirmCashPayment:
+
+      
     });
+  
 
     // Notify kitchen in real time via Socket.io
     this.events.emitOrderStatusUpdate(updatedOrder);
@@ -173,6 +188,8 @@ export class PaymentsService {
       orderNumber: updatedOrder.orderNumber,
       status:      updatedOrder.status,
     };
+
+
   }
 
   
@@ -200,7 +217,10 @@ export class PaymentsService {
     // 4. Find our payment record using the txRef
     const payment = await this.prisma.payment.findUnique({
       where:   { txRef: event.tx_ref },
-      include: { order: true },
+      include: { 
+        order: { include: { items: true } },
+
+       },
     });
 
     if (!payment) {
@@ -256,7 +276,15 @@ export class PaymentsService {
           chapaPaymentMethod: event.payment_method ?? verification.data?.payment_method,
         },
       });
-
+await this.inventory.deductForOrder(
+  payment.orderId,
+  payment.order.branchId,
+  // Need items — add them to the payment query
+  payment.order.items.map((i: any) => ({
+    productId: i.productId,
+    quantity:  i.quantity,
+  })),
+);
       // Payment received → order confirmed → kitchen gets to work
       return tx.order.update({
         where:   { id: payment.orderId },
