@@ -3,9 +3,9 @@ import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 import { ChapaService } from './chapa.service';
 import { EventsModule } from '../events/events.module';
-
+import { InventoryModule } from '../inventory/inventory.module';
 @Module({
-  imports: [EventsModule],   // needed to inject EventsService for real-time notifications
+  imports: [EventsModule, InventoryModule],   
   controllers: [PaymentsController],
   providers: [
     PaymentsService,

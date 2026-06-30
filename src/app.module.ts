@@ -9,6 +9,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { EventsModule } from './modules/events/events.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -21,6 +22,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     PaymentsModule,
     OrdersModule,
     EventsModule,
+    InventoryModule,
   ],
 })
 export class AppModule {}
