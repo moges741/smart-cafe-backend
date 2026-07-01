@@ -13,9 +13,6 @@ import { Server, Socket } from 'socket.io';
 import { EventsService } from './events.service';
 import { Rooms } from '../../common/events/socket-events';
 
-// @WebSocketGateway sets up the WebSocket server
-// cors: true allows connections from any origin during development
-// namespace '/events' means clients connect to ws://localhost:3000/events
 @WebSocketGateway({
   cors: { origin: '*', credentials: true },
   namespace: '/events',
@@ -23,7 +20,6 @@ import { Rooms } from '../../common/events/socket-events';
 export class EventsGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
-  // @WebSocketServer gives us access to the raw Socket.io Server instance
   @WebSocketServer()
   server: Server;
 
