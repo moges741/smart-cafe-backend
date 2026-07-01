@@ -72,8 +72,7 @@ export class EventsGateway
     return { event: 'order.join', status: 'joined', room };
   }
 
-  // Client sends 'user.join' with { userId }
-  // Used for personal notifications
+
   @SubscribeMessage('user.join')
   handleJoinUser(
     @MessageBody() data: { userId: string },
