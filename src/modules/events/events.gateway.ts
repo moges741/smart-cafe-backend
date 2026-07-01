@@ -59,8 +59,7 @@ export class EventsGateway
     return { event: 'kitchen.join', status: 'joined', room };
   }
 
-  // Client sends 'order.join' with { orderId }
-  // Customer uses this to track their specific order
+  
   @SubscribeMessage('order.join')
   handleJoinOrder(
     @MessageBody() data: { orderId: string },
