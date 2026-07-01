@@ -45,8 +45,7 @@ export class EventsGateway
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
-  // Client sends 'kitchen.join' with { branchId }
-  // Server puts that client into the kitchen room for that branch
+  
   @SubscribeMessage('kitchen.join')
   handleJoinKitchen(
     @MessageBody() data: { branchId: string },
