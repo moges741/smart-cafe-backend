@@ -14,7 +14,6 @@ export class EventsService {
   emitNewOrder(order: any) {
     if (!this.server) return;
 
-    // Emit to the kitchen room for this branch
     this.server
       .to(Rooms.kitchen(order.branchId))
       .emit(SocketEvents.KITCHEN_NEW_ORDER, {
@@ -38,18 +37,15 @@ export class EventsService {
       timestamp: new Date().toISOString(),
     };
 
-    // Kitchen sees the update
     this.server
       .to(Rooms.kitchen(order.branchId))
       .emit(SocketEvents.KITCHEN_ORDER_UPDATE, payload);
 
-    // Customer tracking their order also sees it
     this.server
       .to(Rooms.order(order.id))
       .emit(SocketEvents.ORDER_STATUS_UPDATED, payload);
   }
 
-  // Send a notification to a specific user
   emitNotification(userId: string, message: string, data?: any) {
     if (!this.server) return;
 
