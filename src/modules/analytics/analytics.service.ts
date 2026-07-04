@@ -118,53 +118,54 @@ export class AnalyticsService {
   }
 
   
-  async getOrderVolume(query: AnalyticsQueryDto) {
-    const where = this.buildDateFilter(
-      query.period ?? AnalyticsPeriod.THIS_MONTH,
-      query.branchId,
-    );
+async getOrderVolume(query: AnalyticsQueryDto) {
+  const { from, to } = getDateRange(
+    query.period ?? AnalyticsPeriod.THIS_MONTH
+  );
 
-    // Group by status AND by day
-    // This lets you see "how many orders were completed each day this week"
-    const [byStatus, byDay] = await Promise.all([
+  const where = {
+    createdAt: { gte: from, lte: to },
+    ...(query.branchId && { branchId: query.branchId }),
+  };
 
-      this.prisma.order.groupBy({
-        by:     ['status'],
-        where,
-        _count: { id: true },
-      }),
+  // Group by status — pure Prisma, no raw SQL
+  const byStatus = await this.prisma.order.groupBy({
+    by:     ['status'],
+    where,
+    _count: { id: true },
+  });
 
-      (() => {
-        const { from, to } = getDateRange(
-          query.period ?? AnalyticsPeriod.THIS_MONTH
-        );
+  // Get all orders in period — we'll group by day in JavaScript
+  // instead of raw SQL DATE() grouping
+  const orders = await this.prisma.order.findMany({
+    where,
+    select: { createdAt: true },
+    orderBy: { createdAt: 'asc' },
+  });
 
-        return this.prisma.$queryRaw<Array<{ date: string; count: bigint }>>`
-          SELECT
-            DATE("createdAt") as date,
-            COUNT(*)::int     as count
-          FROM "Order"
-          WHERE
-            "createdAt" >= ${from}
-            AND "createdAt" <= ${to}
-            AND (${query.branchId ?? null} IS NULL OR "branchId" = ${query.branchId ?? null})
-          GROUP BY DATE("createdAt")
-          ORDER BY date ASC
-        `;
-      })(),
-    ]);
+  // Group by date string in JavaScript — no raw SQL needed
+  // "2026-07-04" → count of orders on that day
+  const dailyMap = new Map<string, number>();
 
-    return {
-      byStatus: Object.fromEntries(
-        byStatus.map(s => [s.status, s._count.id])
-      ),
-
-      byDay: byDay.map(d => ({
-        date:  d.date,
-        count: Number(d.count),
-      })),
-    };
+  for (const order of orders) {
+    // toISOString() gives "2026-07-04T09:55:47.000Z"
+    // slice(0, 10) extracts just "2026-07-04"
+    const dateKey = order.createdAt.toISOString().slice(0, 10);
+    dailyMap.set(dateKey, (dailyMap.get(dateKey) ?? 0) + 1);
   }
+
+  // Convert map to sorted array of { date, count }
+  const byDay = Array.from(dailyMap.entries())
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    byStatus: Object.fromEntries(
+      byStatus.map(s => [s.status, s._count.id])
+    ),
+    byDay,
+  };
+}
 
   // ─── 4. Inventory Consumption Report ────────────────────────────────────────
   // Returns: how much stock was consumed by orders vs manual removals
