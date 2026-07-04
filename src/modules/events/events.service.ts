@@ -22,7 +22,7 @@ export class EventsService {
         timestamp: new Date().toISOString(),
       });
   }
-
+  
   emitOrderStatusUpdate(order: any) {
     if (!this.server) return;
 
