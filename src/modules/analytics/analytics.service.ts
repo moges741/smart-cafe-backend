@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AnalyticsQueryDto, AnalyticsPeriod } from './dto/analytics-query.dto';
 import { getDateRange } from '../../common/utils/date-range.util';
 import { Parser } from 'json2csv';
+import { query } from 'node_modules/axios/index.cjs';
 
 @Injectable()
 export class AnalyticsService {
@@ -116,8 +117,7 @@ export class AnalyticsService {
     });
   }
 
-  // ─── 3. Order Volume by Status ──────────────────────────────────────────────
-  // Returns: order counts per status, useful for operational dashboard
+  
   async getOrderVolume(query: AnalyticsQueryDto) {
     const where = this.buildDateFilter(
       query.period ?? AnalyticsPeriod.THIS_MONTH,
@@ -134,31 +134,31 @@ export class AnalyticsService {
         _count: { id: true },
       }),
 
-      // Raw query for daily breakdown because Prisma groupBy
-      // doesn't support DATE() truncation natively
-      // $queryRaw lets you write raw SQL when Prisma can't express it
-      this.prisma.$queryRaw<Array<{ date: string; count: bigint }>>`
-        SELECT
-          DATE("createdAt") as date,
-          COUNT(*)          as count
-        FROM "Order"
-        WHERE
-          "createdAt" >= ${getDateRange(query.period ?? 'this_month').from}
-          AND "createdAt" <= ${getDateRange(query.period ?? 'this_month').to}
-          ${query.branchId
-            ? this.prisma.$queryRaw`AND "branchId" = ${query.branchId}`
-            : this.prisma.$queryRaw``
-          }
-        GROUP BY DATE("createdAt")
-        ORDER BY date ASC
-      `,
+      (() => {
+        const { from, to } = getDateRange(
+          query.period ?? AnalyticsPeriod.THIS_MONTH
+        );
+
+        return this.prisma.$queryRaw<Array<{ date: string; count: bigint }>>`
+          SELECT
+            DATE("createdAt") as date,
+            COUNT(*)::int     as count
+          FROM "Order"
+          WHERE
+            "createdAt" >= ${from}
+            AND "createdAt" <= ${to}
+            AND (${query.branchId ?? null} IS NULL OR "branchId" = ${query.branchId ?? null})
+          GROUP BY DATE("createdAt")
+          ORDER BY date ASC
+        `;
+      })(),
     ]);
 
     return {
       byStatus: Object.fromEntries(
         byStatus.map(s => [s.status, s._count.id])
       ),
-      // bigint from raw SQL needs to be converted to Number
+
       byDay: byDay.map(d => ({
         date:  d.date,
         count: Number(d.count),
@@ -277,8 +277,7 @@ export class AnalyticsService {
   }
 
   // ─── 6. CSV Export ──────────────────────────────────────────────────────────
-  // Converts analytics data into downloadable CSV
-  // The 'type' param controls which dataset to export
+
   async exportCsv(
     type:  'sales' | 'products' | 'orders' | 'inventory',
     query: AnalyticsQueryDto,
