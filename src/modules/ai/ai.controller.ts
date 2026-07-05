@@ -7,6 +7,7 @@ import { AiService } from './ai.service';
 import { StartConversationDto } from './dto/start-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtGuard } from '../../common/guards/optional-jwt.guard';
 
 // Note: AI endpoints do NOT use JwtAuthGuard globally
 // They work for both guests and logged-in users
@@ -20,6 +21,7 @@ export class AiController {
   // If logged in, the cookie provides user context automatically
   // If guest, currentUser will be null
   @Post('conversation/start')
+  @UseGuards(OptionalJwtGuard)
   @ApiOperation({
     summary: 'Start an AI ordering conversation',
     description: 'Works for both guests and logged-in customers. Returns a sessionId.',
@@ -34,6 +36,7 @@ export class AiController {
   }
 
   @Post('conversation/message')
+  @UseGuards(OptionalJwtGuard)
   @ApiOperation({
     summary: 'Send a message in an AI conversation',
     description: 'Send customer message, get AI response. Call repeatedly for full conversation.',
@@ -47,6 +50,7 @@ export class AiController {
   }
 
   @Get('conversation/:sessionId')
+  @UseGuards(OptionalJwtGuard)
   @ApiOperation({
     summary: 'Get current session status and items',
   })
