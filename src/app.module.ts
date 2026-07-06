@@ -11,10 +11,12 @@ import { EventsModule } from './modules/events/events.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module'; 
 import { PaymentsModule } from './modules/payments/payments.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { AiModule } from './modules/ai/ai.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    AiModule,
     AnalyticsModule,
     AuthModule,
     UsersModule,
