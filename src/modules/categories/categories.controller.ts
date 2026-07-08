@@ -1,10 +1,23 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { UploadedImageFile } from '../../common/interfaces/uploaded-image-file.interface';
 
 @ApiTags('Categories')
 @ApiBearerAuth()
@@ -37,6 +50,23 @@ export class CategoriesController {
   @ApiOperation({ summary: 'Update a category' })
   update(@Param('id') id: string, @Body() dto: Partial<CreateCategoryDto>) {
     return this.categoriesService.update(id, dto);
+  }
+
+  @Patch(':id/image')
+  @Roles('admin', 'manager')
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        image: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiOperation({ summary: 'Upload or replace a category image' })
+  updateImage(@Param('id') id: string, @UploadedFile() file: UploadedImageFile) {
+    return this.categoriesService.updateImage(id, file);
   }
 
   @Delete(':id')

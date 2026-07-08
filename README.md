@@ -31,6 +31,24 @@
 $ pnpm install
 ```
 
+## Image storage setup
+
+Product and category images are stored in Cloudinary from the backend.
+
+Add these environment variables before starting the app:
+
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- `CLOUDINARY_FOLDER` is optional, and defaults to the `smart-cafe` folder prefix
+
+Use the following image endpoints from the frontend or admin UI:
+
+- `POST /api/v1/products/:id/images` with `coverImage` plus optional `galleryImages[]`
+- `PATCH /api/v1/categories/:id/image` with a single `image` file
+
+The product detail response now includes an ordered `images` array, while `imageUrl` remains the primary image for cards and listings.
+
 ## Compile and run the project
 
 ```bash

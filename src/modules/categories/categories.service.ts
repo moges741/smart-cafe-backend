@@ -1,10 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
+import { UploadedImageFile } from '../../common/interfaces/uploaded-image-file.interface';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   create(dto: CreateCategoryDto) {
     return this.prisma.category.create({ data: dto });
@@ -38,6 +43,25 @@ export class CategoriesService {
     return this.prisma.category.update({
       where: { id },
       data: { isActive: false },
+    });
+  }
+
+  async updateImage(id: string, file?: UploadedImageFile) {
+    if (!file) {
+      throw new BadRequestException('Category image is required');
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Only image uploads are supported');
+    }
+
+    await this.findOne(id);
+
+    const uploadResult = await this.cloudinaryService.uploadImage(file, `smart-cafe/categories/${id}`);
+
+    return this.prisma.category.update({
+      where: { id },
+      data: { imageUrl: uploadResult.secureUrl },
     });
   }
 }
