@@ -1,9 +1,10 @@
 import {
   Controller, Post, Body, HttpCode,
-  HttpStatus, Res, Req, UseGuards
+  HttpStatus, Res, Req, UseGuards,
+  Get
 } from '@nestjs/common';
 import { Response, Request } from 'express';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -11,7 +12,7 @@ import { CreateStaffDto } from './dto/create-staff.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 const ACCESS_TOKEN_TTL  = 60 * 60 * 1000;
 const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000;
 
@@ -70,7 +71,13 @@ export class AuthController {
     res.cookie('refresh_token', refreshToken, cookieOptions(REFRESH_TOKEN_TTL));
     return { message: 'Tokens refreshed' };
   }
-
+@Get('me')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
+@ApiOperation({ summary: 'Get the currently logged-in user — used to restore session on page load' })
+getCurrentUser(@CurrentUser() user: any) {
+  return this.authService.getCurrentUser(user.id);
+}
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout — clears cookies' })

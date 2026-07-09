@@ -56,7 +56,10 @@ export class AuthService {
 
     return { accessToken, refreshToken };
   }
-
+async getCurrentUser(userId: string) {
+  const user = await this.usersService.findById(userId);
+  return user;
+}
   async refreshTokens(refreshToken: string) {
     try {
       const payload = await this.jwtService.verifyAsync(refreshToken, {
