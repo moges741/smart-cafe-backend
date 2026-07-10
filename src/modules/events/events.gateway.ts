@@ -14,8 +14,11 @@ import { EventsService } from './events.service';
 import { Rooms } from '../../common/events/socket-events';
 
 @WebSocketGateway({
-  cors: { origin: '*', credentials: true },
-  namespace: '/events',
+  namespace: "/events",
+  cors: {
+    origin: "http://localhost:5173",
+    credentials: true,
+  },
 })
 export class EventsGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
