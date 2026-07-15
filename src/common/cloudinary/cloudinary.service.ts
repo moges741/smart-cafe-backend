@@ -20,26 +20,62 @@ export class CloudinaryService {
   private readonly uploadsDir = join(process.cwd(), 'uploads');
   private readonly backendBaseUrl: string;
 
-  constructor(private readonly configService: ConfigService) {
-    const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
-    const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
-    const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
-    const port = this.configService.get<string>('PORT') ?? '4000';
+  // constructor(private readonly configService: ConfigService) {
+  //   const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
+  //   const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
+  //   const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
+  //   const port = this.configService.get<string>('PORT') ?? '4000';
 
-    this.backendBaseUrl = `http://localhost:${port}`;
-    this.useCloudinary = Boolean(cloudName && apiKey && apiSecret && /^[a-z0-9][a-z0-9_-]*$/.test(cloudName));
+  //   this.backendBaseUrl = `http://localhost:${port}`;
+  //   this.useCloudinary = Boolean(cloudName && apiKey && apiSecret && /^[a-z0-9][a-z0-9_-]*$/.test(cloudName));
+  //   console.log('CLOUDINARY DEBUG', {
+  //     cloudName,
+  //     apiKeyExists: Boolean(apiKey),
+  //     apiSecretExists: Boolean(apiSecret),
+  //     regexPasses: cloudName ? /^[a-z0-9][a-z0-9_-]*$/.test(cloudName) : false,
+  //   });
+  //   if (this.useCloudinary) {
+  //     cloudinary.config({
+  //       cloud_name: cloudName,
+  //       api_key: apiKey,
+  //       api_secret: apiSecret,
+  //     });
+  //   } else {
+  //     this.logger.warn('Cloudinary config is missing or invalid; using local uploads fallback.');
+  //   }
+  // }
+constructor(private readonly configService: ConfigService) {
+  const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
+  const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
+  const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
+  const port = this.configService.get<string>('PORT') ?? '4000';
 
-    if (this.useCloudinary) {
-      cloudinary.config({
-        cloud_name: cloudName,
-        api_key: apiKey,
-        api_secret: apiSecret,
-      });
-    } else {
-      this.logger.warn('Cloudinary config is missing or invalid; using local uploads fallback.');
-    }
+  this.backendBaseUrl = `http://localhost:${port}`;
+
+  // Trim to guard against trailing whitespace from .env copy-paste
+  const cleanCloudName = cloudName?.trim();
+  const cleanApiKey = apiKey?.trim();
+  const cleanApiSecret = apiSecret?.trim();
+
+  this.useCloudinary = Boolean(cleanCloudName && cleanApiKey && cleanApiSecret);
+
+  if (this.useCloudinary) {
+    cloudinary.config({
+      cloud_name: cleanCloudName,
+      api_key: cleanApiKey,
+      api_secret: cleanApiSecret,
+    });
+    this.logger.log(`Cloudinary configured — cloud_name: ${cleanCloudName}`);
+  } else {
+    // Loud and impossible to miss instead of a warning buried in startup logs
+    this.logger.error(
+      '❌ CLOUDINARY IS NOT CONFIGURED — all image uploads will fall back to local disk storage. ' +
+      `Check: CLOUDINARY_CLOUD_NAME=${cleanCloudName ? 'set' : 'MISSING'}, ` +
+      `CLOUDINARY_API_KEY=${cleanApiKey ? 'set' : 'MISSING'}, ` +
+      `CLOUDINARY_API_SECRET=${cleanApiSecret ? 'set' : 'MISSING'}`
+    );
   }
-
+}
   async uploadImage(file: UploadedImageFile, folder: string): Promise<CloudinaryUploadResult> {
     if (!this.useCloudinary) {
       return this.saveLocally(file, folder);
@@ -52,12 +88,13 @@ export class CloudinaryService {
           resource_type: 'image',
         },
         (error, result) => {
-          if (error || !result) {
-            reject(
-              new InternalServerErrorException('Failed to upload image to Cloudinary'),
-            );
-            return;
-          }
+  if (error || !result) {
+    this.logger.error('Cloudinary upload failed', error);
+    reject(
+      new InternalServerErrorException('Failed to upload image to Cloudinary'),
+    );
+    return;
+  }
 
           resolve({
             secureUrl: result.secure_url,
