@@ -19,13 +19,13 @@ export class OrdersController {
   @ApiOperation({ summary: 'Place a new order' })
   create(
     @Body() dto: CreateOrderDto,
-    @CurrentUser() user: any,  // the logged-in user from JwtStrategy.validate()
+    @CurrentUser() user: any,
   ) {
     return this.ordersService.create(dto, user.id);
   }
 
   @Get()
-  @Roles('admin', 'manager', 'cashier', 'kitchen', 'waiter')
+  @Roles('admin', 'manager', 'cashier', 'kitchen', 'waiter', 'barista')
   @ApiOperation({ summary: 'Get all orders — filter by branch and/or status' })
   @ApiQuery({ name: 'branchId', required: false })
   @ApiQuery({ name: 'status', required: false, enum: ['pending','confirmed','in_kitchen','ready','completed','cancelled'] })
@@ -43,7 +43,7 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  @Roles('admin', 'manager', 'cashier', 'kitchen')
+  @Roles('admin', 'manager', 'cashier', 'kitchen', 'barista')
   @ApiOperation({ summary: 'Update order status (enforces state machine)' })
   updateStatus(
     @Param('id') id: string,

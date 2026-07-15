@@ -196,6 +196,7 @@ export class AiService {
       orderSummary: session.extractedItems.length > 0 && !session.orderPlaced
         ? {
             items: session.extractedItems.map(i => ({
+              productId:   i.productId,
               name:      i.productName,
               quantity:  i.quantity,
               unitPrice: i.unitPrice,

@@ -15,9 +15,9 @@ export class CategoriesService {
     return this.prisma.category.create({ data: dto });
   }
 
-  findAll() {
+  findAll(includeInactive = false) {
     return this.prisma.category.findMany({
-      where: { isActive: true },
+      where: includeInactive ? undefined : { isActive: true },
       include: { _count: { select: { products: true } } },
       orderBy: { name: 'asc' },
     });

@@ -2,7 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import * as cookieParser from 'cookie-parser';
+import cookieParser = require('cookie-parser');
+import { join } from 'node:path';
+import * as express from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -33,10 +35,11 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
   app.use(cookieParser());
+  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   app.enableCors({
-  origin: 'http://localhost:5173',
-  credentials: true,
-});
+    origin: 'http://localhost:5173',
+    credentials: true,
+  });
   const port = process.env.PORT ?? 4000;
   await app.listen(port);
   console.log(`Smart Cafe API running on http://localhost:${port}/api/v1`);

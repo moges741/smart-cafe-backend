@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -35,8 +36,8 @@ export class CategoriesController {
 
   @Get()
   @ApiOperation({ summary: 'Get all active categories' })
-  findAll() {
-    return this.categoriesService.findAll();
+  findAll(@Query('includeInactive') includeInactive?: string) {
+    return this.categoriesService.findAll(includeInactive === 'true');
   }
 
   @Get(':id')

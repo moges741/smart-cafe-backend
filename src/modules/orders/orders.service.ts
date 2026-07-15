@@ -87,7 +87,7 @@ export class OrdersService {
       },
       include: {
         items: {
-          include: { product: { select: { id: true, name: true, price: true } } }
+          include: { product: { select: { id: true, name: true, price: true, categoryId: true } } }
         },
         customer: { select: { id: true, email: true } },
         payment: true,

@@ -1,7 +1,11 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
+import { createWriteStream } from 'node:fs';
+import { mkdir, stat } from 'node:fs/promises';
+import { join, extname } from 'node:path';
 import { Readable } from 'node:stream';
+import { randomUUID } from 'node:crypto';
 import { UploadedImageFile } from '../interfaces/uploaded-image-file.interface';
 
 export interface CloudinaryUploadResult {
@@ -11,15 +15,36 @@ export interface CloudinaryUploadResult {
 
 @Injectable()
 export class CloudinaryService {
+  private readonly logger = new Logger(CloudinaryService.name);
+  private readonly useCloudinary: boolean;
+  private readonly uploadsDir = join(process.cwd(), 'uploads');
+  private readonly backendBaseUrl: string;
+
   constructor(private readonly configService: ConfigService) {
-    cloudinary.config({
-      cloud_name: this.configService.getOrThrow<string>('CLOUDINARY_CLOUD_NAME'),
-      api_key: this.configService.getOrThrow<string>('CLOUDINARY_API_KEY'),
-      api_secret: this.configService.getOrThrow<string>('CLOUDINARY_API_SECRET'),
-    });
+    const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
+    const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
+    const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
+    const port = this.configService.get<string>('PORT') ?? '4000';
+
+    this.backendBaseUrl = `http://localhost:${port}`;
+    this.useCloudinary = Boolean(cloudName && apiKey && apiSecret && /^[a-z0-9][a-z0-9_-]*$/.test(cloudName));
+
+    if (this.useCloudinary) {
+      cloudinary.config({
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret,
+      });
+    } else {
+      this.logger.warn('Cloudinary config is missing or invalid; using local uploads fallback.');
+    }
   }
 
   async uploadImage(file: UploadedImageFile, folder: string): Promise<CloudinaryUploadResult> {
+    if (!this.useCloudinary) {
+      return this.saveLocally(file, folder);
+    }
+
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
@@ -43,5 +68,39 @@ export class CloudinaryService {
 
       Readable.from(file.buffer).pipe(uploadStream);
     });
+  }
+
+  private async saveLocally(file: UploadedImageFile, folder: string): Promise<CloudinaryUploadResult> {
+    const folderPath = folder.split('/').filter(Boolean).join('/');
+    const storageDir = join(this.uploadsDir, folderPath);
+    await mkdir(storageDir, { recursive: true });
+
+    const extension = extname(this.getFileNameFromMimeType(file.mimetype));
+    const fileName = `${randomUUID()}${extension}`;
+    const filePath = join(storageDir, fileName);
+
+    await new Promise<void>((resolve, reject) => {
+      const writeStream = createWriteStream(filePath);
+      writeStream.on('finish', () => resolve());
+      writeStream.on('error', reject);
+      Readable.from(file.buffer).pipe(writeStream);
+    });
+
+    const relativePath = `${folderPath}/${fileName}`;
+
+    return {
+      secureUrl: `${this.backendBaseUrl}/uploads/${relativePath}`,
+      publicId: relativePath,
+    };
+  }
+
+  private getFileNameFromMimeType(mimetype: string) {
+    if (mimetype === 'image/jpeg') return 'image.jpg';
+    if (mimetype === 'image/jpg') return 'image.jpg';
+    if (mimetype === 'image/png') return 'image.png';
+    if (mimetype === 'image/webp') return 'image.webp';
+    if (mimetype === 'image/gif') return 'image.gif';
+
+    return 'image.bin';
   }
 }
