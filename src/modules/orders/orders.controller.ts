@@ -43,7 +43,7 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  @Roles('admin', 'manager', 'cashier', 'kitchen', 'barista')
+  @Roles('admin', 'manager', 'cashier', 'kitchen', 'barista', 'waiter')
   @ApiOperation({ summary: 'Update order status (enforces state machine)' })
   updateStatus(
     @Param('id') id: string,

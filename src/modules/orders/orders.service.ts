@@ -8,7 +8,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  pending:    ['confirmed', 'cancelled'],
+  pending:    ['confirmed', 'in_kitchen', 'cancelled'],
   confirmed:  ['in_kitchen', 'cancelled'],
   in_kitchen: ['ready'],
   ready:      ['completed'],

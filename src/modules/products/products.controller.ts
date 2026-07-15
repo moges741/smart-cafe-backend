@@ -1,20 +1,22 @@
 import {
   Controller,
-  Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
   UseGuards,
   UseInterceptors,
   UploadedFiles,
+  Get,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -49,7 +51,7 @@ export class ProductsController {
   @Patch(':id')
   @Roles('admin', 'manager')
   @ApiOperation({ summary: 'Update a product' })
-  update(@Param('id') id: string, @Body() dto: Partial<CreateProductDto>) {
+  update(@Param('id') id: string, @Body() dto: UpdateProductDto) {
     return this.productsService.update(id, dto);
   }
 
@@ -58,6 +60,13 @@ export class ProductsController {
   @ApiOperation({ summary: 'Toggle product availability on/off' })
   toggle(@Param('id') id: string) {
     return this.productsService.toggleAvailability(id);
+  }
+
+  @Delete(':id')
+  @Roles('admin', 'manager')
+  @ApiOperation({ summary: 'Delete a product' })
+  remove(@Param('id') id: string) {
+    return this.productsService.remove(id);
   }
 
   @Post(':id/images')

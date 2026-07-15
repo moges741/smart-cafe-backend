@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { UploadedImageFile } from '../../common/interfaces/uploaded-image-file.interface';
 
@@ -104,7 +105,7 @@ export class ProductsService {
     return product;
   }
 
-  async update(id: string, dto: Partial<CreateProductDto>) {
+  async update(id: string, dto: UpdateProductDto) {
     await this.findOne(id);
     return this.prisma.product.update({
       where: { id },
@@ -122,6 +123,29 @@ export class ProductsService {
     return this.prisma.product.update({
       where: { id },
       data: { isAvailable: !product.isAvailable },
+    });
+  }
+
+  async remove(id: string) {
+    await this.findOne(id);
+
+    const orderItemsCount = await this.prisma.orderItem.count({ where: { productId: id } });
+    if (orderItemsCount > 0) {
+      throw new BadRequestException('Cannot delete product because it has associated orders. Please make it unavailable instead.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const inventories = await tx.inventory.findMany({ where: { productId: id } });
+      for (const inv of inventories) {
+        await tx.inventoryLog.deleteMany({ where: { inventoryId: inv.id } });
+        await tx.inventory.delete({ where: { id: inv.id } });
+      }
+
+      await tx.productImage.deleteMany({ where: { productId: id } });
+
+      return tx.product.delete({
+        where: { id },
+      });
     });
   }
 
