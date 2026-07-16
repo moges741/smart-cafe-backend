@@ -133,6 +133,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (!user.isEmailVerified && user.role.name === 'customer') {
+      throw new UnauthorizedException('Please verify your email address before logging in. Check your inbox.');
+    }
+
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) {
       throw new UnauthorizedException('Invalid credentials');
