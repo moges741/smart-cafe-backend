@@ -79,12 +79,20 @@ export class OrdersService {
     return order;
   }
 
-  findAll(branchId?: string, status?: string) {
+  findAll(branchId?: string, status?: string, days?: number) {
+    const whereClause: any = {
+      ...(branchId && { branchId }),
+      ...(status && { status: status as any }),
+    };
+
+    if (days) {
+      const dateLimit = new Date();
+      dateLimit.setDate(dateLimit.getDate() - days);
+      whereClause.createdAt = { gte: dateLimit };
+    }
+
     return this.prisma.order.findMany({
-      where: {
-        ...(branchId && { branchId }),
-        ...(status && { status: status as any }),
-      },
+      where: whereClause,
       include: {
         items: {
           include: { product: { select: { id: true, name: true, price: true, categoryId: true } } }

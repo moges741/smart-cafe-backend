@@ -38,7 +38,7 @@ export class PaymentsController {
   @Post('cash-confirm')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('cashier', 'manager', 'admin')
+  @Roles('cashier', 'manager', 'admin', 'waiter')
   @ApiOperation({
     summary: 'Confirm cash payment at counter (cashier only)',
     description: 'No Chapa involved. Cashier confirms physical cash was received.',

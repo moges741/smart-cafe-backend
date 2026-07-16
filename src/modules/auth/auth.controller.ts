@@ -30,9 +30,27 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @ApiOperation({ summary: 'Public registration — role auto-assigned as customer' })
+  @ApiOperation({ summary: 'Register a new customer account' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  @Post('verify-email')
+  @ApiOperation({ summary: 'Verify email using token' })
+  verifyEmail(@Body('token') token: string) {
+    return this.authService.verifyEmail(token);
+  }
+
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request a password reset link' })
+  forgotPassword(@Body('email') email: string) {
+    return this.authService.forgotPassword(email);
+  }
+
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Reset password using token' })
+  resetPassword(@Body() body: any) {
+    return this.authService.resetPassword(body.token, body.password);
   }
 
   @Post('staff')

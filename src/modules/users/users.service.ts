@@ -8,7 +8,7 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   // Public registration — role is always "customer"
-  async createCustomer(email: string, password: string) {
+  async createCustomer(firstName: string, lastName: string, email: string, password: string) {
     await this.checkEmailUnique(email);
 
     const customerRole = await this.prisma.role.findUnique({
@@ -19,9 +19,11 @@ export class UsersService {
     const passwordHash = await bcrypt.hash(password, 10);
 
     return this.prisma.user.create({
-      data: { email, passwordHash, roleId: customerRole.id },
+      data: { firstName, lastName, email, passwordHash, roleId: customerRole.id },
       select: {
         id: true,
+        firstName: true,
+        lastName: true,
         email: true,
         isActive: true,
         createdAt: true,

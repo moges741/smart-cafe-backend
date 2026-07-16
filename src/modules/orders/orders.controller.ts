@@ -26,14 +26,16 @@ export class OrdersController {
 
   @Get()
   @Roles('admin', 'manager', 'cashier', 'kitchen', 'waiter', 'barista')
-  @ApiOperation({ summary: 'Get all orders — filter by branch and/or status' })
+  @ApiOperation({ summary: 'Get all orders — filter by branch, status, or recent days' })
   @ApiQuery({ name: 'branchId', required: false })
   @ApiQuery({ name: 'status', required: false, enum: ['pending','confirmed','in_kitchen','ready','completed','cancelled'] })
+  @ApiQuery({ name: 'days', required: false, type: Number, description: 'Filter orders from the last X days' })
   findAll(
     @Query('branchId') branchId?: string,
     @Query('status') status?: string,
+    @Query('days') days?: number,
   ) {
-    return this.ordersService.findAll(branchId, status);
+    return this.ordersService.findAll(branchId, status, days);
   }
 
   @Get(':id')

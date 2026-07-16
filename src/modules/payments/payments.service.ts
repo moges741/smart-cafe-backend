@@ -168,12 +168,12 @@ export class PaymentsService {
   })),
 );
 
-      // Move order to confirmed — kitchen can start preparing
-      return tx.order.update({
+      // Do NOT change the order status here, so it stays 'pending' and Waiter can send it
+      const updatedOrder = await tx.order.findUnique({
         where:   { id: order.id },
-        data:    { status: 'confirmed' },
-        include: { items: true },
+        include: { items: true, payment: true },
       });
+      return updatedOrder!;
 // After the $transaction block in confirmCashPayment:
 
       
@@ -285,12 +285,13 @@ await this.inventory.deductForOrder(
     quantity:  i.quantity,
   })),
 );
-      // Payment received → order confirmed → kitchen gets to work
-      return tx.order.update({
+      // Payment received → Waiter will be notified via UI to send to kitchen
+      // We do NOT change the order status here, so it stays 'pending' and the Waiter can send it
+      const order = await tx.order.findUnique({
         where:   { id: payment.orderId },
-        data:    { status: 'confirmed' },
-        include: { items: true },
+        include: { items: true, payment: true },
       });
+      return order!;
     });
 
     // 9. Fire real-time event — kitchen sees the confirmed order instantly
