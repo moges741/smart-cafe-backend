@@ -37,7 +37,7 @@ async function bootstrap() {
   app.use(cookieParser());
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   app.enableCors({
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
     credentials: true,
   });
   const port = process.env.PORT ?? 4000;

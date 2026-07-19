@@ -94,7 +94,21 @@ export class AuthService {
     this.emailService.sendPasswordResetEmail(user.email, token, user.firstName);
     return { message: 'If that email exists, a reset link has been sent.' };
   }
-
+async getStaff() {
+  return this.prisma.user.findMany({
+    where: { role: { name: { in: ['manager', 'cashier', 'waiter', 'barista', 'kitchen'] } } },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      isActive: true,
+      createdAt: true,
+      role: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+}
   async resetPassword(token: string, newPassword: string) {
     const user = await this.prisma.user.findFirst({
       where: {

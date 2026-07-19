@@ -89,6 +89,11 @@ export class AuthController {
     res.cookie('refresh_token', refreshToken, cookieOptions(REFRESH_TOKEN_TTL));
     return { message: 'Tokens refreshed' };
   }
+  @Get('staff')
+@Roles('admin', 'manager')
+getStaff() {
+  return this.authService.getStaff()
+}
 @Get('me')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
