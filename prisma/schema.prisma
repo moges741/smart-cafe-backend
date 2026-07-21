@@ -50,6 +50,7 @@ model Branch {
   employees Employee[]
   orders    Order[]
   products  Product[]
+  categories Category[]
   inventories Inventory[]
   @@index([isActive])
 }
@@ -76,8 +77,12 @@ model Category {
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   products    Product[]
+  
+  branchId    String
+  branch      Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@index([isActive])
+  @@index([branchId])
 }
 
 model Product {

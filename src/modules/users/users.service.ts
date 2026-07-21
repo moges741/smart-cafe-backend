@@ -43,15 +43,32 @@ export class UsersService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    return this.prisma.user.create({
-      data: { email: dto.email, passwordHash, roleId: role.id },
-      select: {
-        id: true,
-        email: true,
-        isActive: true,
-        createdAt: true,
-        role: { select: { id: true, name: true } },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { email: dto.email, passwordHash, roleId: role.id },
+      });
+
+      if (dto.branchId) {
+        await tx.employee.create({
+          data: {
+            userId: user.id,
+            branchId: dto.branchId,
+            role: dto.role,
+          }
+        });
+      }
+
+      return tx.user.findUnique({
+        where: { id: user.id },
+        select: {
+          id: true,
+          email: true,
+          isActive: true,
+          createdAt: true,
+          role: { select: { id: true, name: true } },
+          employee: { select: { branchId: true } }
+        },
+      });
     });
   }
 
@@ -75,6 +92,7 @@ export class UsersService {
         email: true,
         isActive: true,
         role: { select: { id: true, name: true } },
+        employee: { select: { branchId: true, branch: { select: { name: true } } } }
       },
     });
     if (!user) throw new NotFoundException('User not found');

@@ -35,9 +35,12 @@ export class CategoriesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all active categories' })
-  findAll(@Query('includeInactive') includeInactive?: string) {
-    return this.categoriesService.findAll(includeInactive === 'true');
+  @ApiOperation({ summary: 'Get all active categories for a branch' })
+  findAll(
+    @Query('branchId') branchId?: string,
+    @Query('includeInactive') includeInactive?: string
+  ) {
+    return this.categoriesService.findAll(branchId, includeInactive === 'true');
   }
 
   @Get(':id')

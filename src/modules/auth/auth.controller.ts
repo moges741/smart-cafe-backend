@@ -1,7 +1,7 @@
 import {
   Controller, Post, Body, HttpCode,
   HttpStatus, Res, Req, UseGuards,
-  Get
+  Get, Query
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -90,10 +90,10 @@ export class AuthController {
     return { message: 'Tokens refreshed' };
   }
   @Get('staff')
-@Roles('admin', 'manager')
-getStaff() {
-  return this.authService.getStaff()
-}
+  @Roles('admin', 'manager')
+  getStaff(@Query('branchId') branchId?: string) {
+    return this.authService.getStaff(branchId)
+  }
 @Get('me')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

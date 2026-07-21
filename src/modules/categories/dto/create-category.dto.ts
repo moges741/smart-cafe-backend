@@ -15,4 +15,8 @@ export class CreateCategoryDto {
   @IsOptional()
   @IsUrl()
   imageUrl?: string;
+
+  @ApiProperty({ example: 'uuid-of-branch' })
+  @IsString()
+  branchId: string;
 }
