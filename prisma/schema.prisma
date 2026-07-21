@@ -36,6 +36,7 @@ model User {
   employee               Employee?
   orders                 Order[]
   inventoryLogs          InventoryLog[] 
+  cart                   Cart?
   @@index([email])
 }
 
@@ -96,6 +97,7 @@ model Product {
   branch      Branch      @relation(fields: [branchId], references: [id])
 
   orderItems  OrderItem[]
+  cartItems   CartItem[]
   inventory    Inventory[]
   images      ProductImage[]
   @@index([branchId, isAvailable])
@@ -260,4 +262,32 @@ enum InventoryReason {
   manual_removal    // manager removed stock (wastage, spillage, expiry)
   count_correction  // physical count didn't match system — corrected
   opening_stock     // initial stock when inventory record first created
+}
+
+// ── Cart models ───────────────────────────────
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id])
+  branchId  String?    // Optional: useful if cart is branch specific
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id          String   @id @default(uuid())
+  cartId      String
+  cart        Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  quantity    Int      @default(1)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([cartId, productId])
+  @@index([cartId])
 }

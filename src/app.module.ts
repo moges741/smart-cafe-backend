@@ -13,6 +13,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { AiModule } from './modules/ai/ai.module';
+import { CartModule } from './modules/cart/cart.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -29,6 +31,7 @@ import { AiModule } from './modules/ai/ai.module';
     OrdersModule,
     EventsModule,
     InventoryModule,
+    CartModule,
   ],
 })
 export class AppModule {}
