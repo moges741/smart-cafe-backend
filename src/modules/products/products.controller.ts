@@ -24,12 +24,12 @@ import { UploadedImageFile } from '../../common/interfaces/uploaded-image-file.i
 
 @ApiTags('Products')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'manager')
   @ApiOperation({ summary: 'Create a product' })
   create(@Body() dto: CreateProductDto) {
@@ -49,6 +49,7 @@ export class ProductsController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'manager')
   @ApiOperation({ summary: 'Update a product' })
   update(@Param('id') id: string, @Body() dto: UpdateProductDto) {
@@ -56,6 +57,7 @@ export class ProductsController {
   }
 
   @Patch(':id/toggle-availability')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'manager', 'cashier')
   @ApiOperation({ summary: 'Toggle product availability on/off' })
   toggle(@Param('id') id: string) {
@@ -63,6 +65,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'manager')
   @ApiOperation({ summary: 'Delete a product' })
   remove(@Param('id') id: string) {
@@ -70,6 +73,7 @@ export class ProductsController {
   }
 
   @Post(':id/images')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'manager')
   @UseInterceptors(
     FileFieldsInterceptor([

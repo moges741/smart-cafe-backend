@@ -22,12 +22,12 @@ import { UploadedImageFile } from '../../common/interfaces/uploaded-image-file.i
 
 @ApiTags('Categories')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'manager')
   @ApiOperation({ summary: 'Create a category (admin/manager only)' })
   create(@Body() dto: CreateCategoryDto) {
@@ -47,6 +47,7 @@ export class CategoriesController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'manager')
   @ApiOperation({ summary: 'Update a category' })
   update(@Param('id') id: string, @Body() dto: Partial<CreateCategoryDto>) {
@@ -54,6 +55,7 @@ export class CategoriesController {
   }
 
   @Patch(':id/image')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'manager')
   @UseInterceptors(FileInterceptor('image'))
   @ApiConsumes('multipart/form-data')
@@ -71,6 +73,7 @@ export class CategoriesController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'manager')
   @ApiOperation({ summary: 'Soft-delete a category' })
   remove(@Param('id') id: string) {

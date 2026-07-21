@@ -64,7 +64,8 @@ export class PaymentsService {
     // 6. Build URLs
     const appUrl      = this.config.get<string>('APP_URL')!;
     const callbackUrl = `${appUrl}/api/v1/payments/webhook`;
-    const returnUrl   = this.config.get<string>('FRONTEND_RETURN_URL')!;
+    const baseReturnUrl = this.config.get<string>('FRONTEND_RETURN_URL')!;
+    const returnUrl   = `${baseReturnUrl}?orderId=${order.id}`;
 
     // 7. Call Chapa to initialize the transaction
     const chapaResponse = await this.chapa.initializeTransaction({
