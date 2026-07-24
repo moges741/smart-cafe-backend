@@ -42,8 +42,8 @@ export class AuthService {
       },
     });
 
-    // 3. Send email asynchronously
-    this.emailService.sendVerificationEmail(user.email, token, user.firstName);
+    // 3. Send verification email
+    await this.emailService.sendVerificationEmail(user.email, token, user.firstName);
 
     return { message: 'Registration successful. Please check your email to verify your account.' };
   }
@@ -91,7 +91,7 @@ export class AuthService {
       },
     });
 
-    this.emailService.sendPasswordResetEmail(user.email, token, user.firstName);
+    await this.emailService.sendPasswordResetEmail(user.email, token, user.firstName);
     return { message: 'If that email exists, a reset link has been sent.' };
   }
   async getStaff(branchId?: string) {

@@ -6,23 +6,36 @@ import { Resend } from 'resend';
 export class EmailService {
   private resend: Resend;
   private readonly logger = new Logger(EmailService.name);
-  private fromEmail: string;
+  private readonly fromEmail: string;
+  private readonly frontendUrl: string;
+  private readonly isConfigured: boolean;
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('RESEND_API_KEY');
+    this.fromEmail =
+      this.configService.get<string>('RESEND_FROM_EMAIL') ||
+      'noreply@mail.dev-moges.me';
+    this.frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    this.isConfigured = Boolean(apiKey && this.fromEmail);
+
     if (!apiKey) {
       this.logger.warn('RESEND_API_KEY is not defined. Emails will be mocked.');
+    } else if (!this.configService.get<string>('RESEND_FROM_EMAIL')) {
+      this.logger.warn(
+        'RESEND_FROM_EMAIL is not set. Using default noreply@mail.dev-moges.me',
+      );
     }
+
     this.resend = new Resend(apiKey || 'mock-api-key');
-    this.fromEmail = 'onboarding@resend.dev'; // Resend testing domain
   }
 
   async sendVerificationEmail(to: string, token: string, name: string) {
-    const verificationUrl = `http://localhost:5173/verify-email?token=${token}`;
-    
+    const verificationUrl = `${this.frontendUrl}/verify-email?token=${token}`;
+
     try {
-      if (this.configService.get<string>('RESEND_API_KEY')) {
-        await this.resend.emails.send({
+      if (this.isConfigured) {
+        const { error } = await this.resend.emails.send({
           from: `Mr. Cafe <${this.fromEmail}>`,
           to,
           subject: 'Verify your Mr. Cafe Account',
@@ -38,21 +51,29 @@ export class EmailService {
             </div>
           `,
         });
+
+        if (error) {
+          throw error;
+        }
+
         this.logger.log(`Verification email sent to ${to}`);
       } else {
-        this.logger.log(`Mock Email -> Verification URL for ${to}: ${verificationUrl}`);
+        this.logger.log(
+          `Mock Email -> Verification URL for ${to}: ${verificationUrl}`,
+        );
       }
     } catch (error) {
       this.logger.error(`Failed to send verification email to ${to}`, error);
+      throw error;
     }
   }
 
   async sendPasswordResetEmail(to: string, token: string, name: string) {
-    const resetUrl = `http://localhost:5173/reset-password?token=${token}`;
-    
+    const resetUrl = `${this.frontendUrl}/reset-password?token=${token}`;
+
     try {
-      if (this.configService.get<string>('RESEND_API_KEY')) {
-        await this.resend.emails.send({
+      if (this.isConfigured) {
+        const { error } = await this.resend.emails.send({
           from: `Mr. Cafe <${this.fromEmail}>`,
           to,
           subject: 'Reset your Mr. Cafe Password',
@@ -69,12 +90,18 @@ export class EmailService {
             </div>
           `,
         });
+
+        if (error) {
+          throw error;
+        }
+
         this.logger.log(`Password reset email sent to ${to}`);
       } else {
         this.logger.log(`Mock Email -> Reset URL for ${to}: ${resetUrl}`);
       }
     } catch (error) {
       this.logger.error(`Failed to send password reset email to ${to}`, error);
+      throw error;
     }
   }
 }
