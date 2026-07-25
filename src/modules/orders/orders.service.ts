@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsService } from '../events/events.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
@@ -21,6 +22,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventsService: EventsService, // injected here
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(dto: CreateOrderDto, customerId: string) {
@@ -75,6 +77,9 @@ export class OrdersService {
 
     // 🔴 Fire real-time event — kitchen sees this order instantly
     this.eventsService.emitNewOrder(order);
+
+    // 🔴 Fire background event for asynchronous email notifications
+    this.eventEmitter.emit('order.created', order);
 
     return order;
   }

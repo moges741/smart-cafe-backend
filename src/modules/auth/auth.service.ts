@@ -21,13 +21,32 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    // 1. Create user
-    const user = await this.usersService.createCustomer(
-      dto.firstName, 
-      dto.lastName, 
-      dto.email, 
-      dto.password
-    );
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    let user;
+    if (existingUser) {
+      if (existingUser.isEmailVerified) {
+        throw new BadRequestException('Email already registered');
+      }
+      const passwordHash = await bcrypt.hash(dto.password, 10);
+      user = await this.prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          passwordHash,
+        },
+      });
+    } else {
+      user = await this.usersService.createCustomer(
+        dto.firstName, 
+        dto.lastName, 
+        dto.email, 
+        dto.password
+      );
+    }
 
     // 2. Generate verification token
     const token = crypto.randomBytes(32).toString('hex');

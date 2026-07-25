@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersModule } from '../users/users.module';
 import { EmailService } from './email.service';
+import { ResendClient } from './resend.client';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { EmailService } from './email.service';
     // so we can use different secrets for access vs refresh tokens
     JwtModule.register({}),
   ],
-  providers: [AuthService, JwtStrategy, EmailService],
+  providers: [AuthService, JwtStrategy, ResendClient, EmailService],
   controllers: [AuthController],
 })
 export class AuthModule {}

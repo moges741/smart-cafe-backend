@@ -98,4 +98,21 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
+
+  async getCashiersByBranch(branchId: string) {
+    return this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        isEmailVerified: true,
+        role: { name: 'cashier' },
+        employee: { branchId }
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+      }
+    });
+  }
 }
