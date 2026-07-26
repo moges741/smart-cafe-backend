@@ -161,7 +161,29 @@ export class AuthService {
 
   async createStaff(dto: CreateStaffDto) {
     // Admin creates staff — role looked up by name, not UUID
-    return this.usersService.createStaff(dto);
+    const staff = await this.usersService.createStaff(dto);
+
+    let branchName = 'Main Branch';
+    if (dto.branchId) {
+      const branch = await this.prisma.branch.findUnique({ where: { id: dto.branchId } });
+      if (branch) {
+        branchName = branch.name;
+      }
+    }
+
+    await this.emailService
+      .sendStaffWelcomeEmail({
+        to: dto.email,
+        role: dto.role,
+        branchName,
+        email: dto.email,
+        password: dto.password,
+      })
+      .catch((err) => {
+        console.error('Failed to send staff welcome email:', err);
+      });
+
+    return staff;
   }
 
   async login(dto: LoginDto) {

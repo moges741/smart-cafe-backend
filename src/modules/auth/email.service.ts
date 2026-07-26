@@ -195,6 +195,87 @@ export class EmailService {
     }
   }
 
+  async sendStaffWelcomeEmail(options: {
+    to: string;
+    role: string;
+    branchName: string;
+    email: string;
+    password?: string;
+  }) {
+    const loginUrl = `${this.frontendUrl}/login`;
+    const formattedRole = options.role.charAt(0).toUpperCase() + options.role.slice(1);
+
+    const html = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8f9fa; padding: 30px; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+          <div style="background-color: #c29570; padding: 25px 30px; color: #ffffff; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Welcome to Mr. Cafe Team!</h1>
+            <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.9;">Staff Account Credentials</p>
+          </div>
+
+          <div style="padding: 30px;">
+            <p style="font-size: 16px; color: #333; margin-top: 0;">Hello,</p>
+            <p style="font-size: 15px; color: #555; line-height: 1.6;">
+              You have been assigned as a <strong>${formattedRole}</strong> at <strong>${options.branchName}</strong>. Below are your account details and credentials to log into the staff portal:
+            </p>
+
+            <div style="background: #faf6f0; border-left: 4px solid #c29570; padding: 18px; margin: 25px 0; border-radius: 4px;">
+              <h3 style="margin: 0 0 12px 0; color: #8a5a36; font-size: 16px;">Your Access Credentials</h3>
+              <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 6px 0; color: #666;">Assigned Role:</td>
+                  <td style="padding: 6px 0; font-weight: bold; text-align: right; color: #c29570;">${formattedRole}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #666;">Assigned Branch:</td>
+                  <td style="padding: 6px 0; font-weight: bold; text-align: right;">${options.branchName}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #666;">Login Email:</td>
+                  <td style="padding: 6px 0; font-weight: bold; text-align: right;">${options.email}</td>
+                </tr>
+                ${
+                  options.password
+                    ? `
+                <tr>
+                  <td style="padding: 6px 0; color: #666;">Temporary Password:</td>
+                  <td style="padding: 6px 0; font-weight: bold; font-family: monospace; font-size: 15px; text-align: right; color: #d97706;">${options.password}</td>
+                </tr>
+                `
+                    : ''
+                }
+              </table>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${loginUrl}" style="display: inline-block; padding: 12px 28px; background-color: #c29570; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; box-shadow: 0 4px 10px rgba(194, 149, 112, 0.3);">
+                Sign In to Staff Portal
+              </a>
+            </div>
+
+            <p style="color: #666; font-size: 13px; margin-bottom: 0;">
+              Or copy and paste this link in your browser:<br />
+              <span style="color: #c29570; word-break: break-all;">${loginUrl}</span>
+            </p>
+
+            <hr style="border: none; border-top: 1px solid #eaeaea; margin: 30px 0;" />
+            <p style="color: #999; font-size: 12px; margin: 0;">
+              🔒 Security Notice: Please log in and change your password after your first sign-in.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await this.sendEmail({
+      to: options.to,
+      subject: `🎉 Welcome to Mr. Cafe — You are assigned as ${formattedRole} at ${options.branchName}`,
+      html,
+      logLabel: `Staff welcome email sent to ${options.to}`,
+      mockLog: `Mock Email -> Staff welcome email for ${options.to}`,
+    });
+  }
+
   async sendVerificationEmail(to: string, token: string, name: string) {
     const verificationUrl = `${this.frontendUrl}/verify-email?token=${token}`;
 

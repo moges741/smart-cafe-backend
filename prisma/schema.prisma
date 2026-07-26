@@ -37,6 +37,11 @@ model User {
   orders                 Order[]
   inventoryLogs          InventoryLog[] 
   cart                   Cart?
+
+  requestedRequests      MaterialRequest[] @relation("RequestedRequests")
+  approvedRequests       MaterialRequest[] @relation("ApprovedRequests")
+  transactions           InventoryTransaction[] @relation("TransactionActor")
+
   @@index([email])
 }
 
@@ -52,6 +57,12 @@ model Branch {
   products  Product[]
   categories Category[]
   inventories Inventory[]
+
+  mainInventories        MainStoreInventory[]
+  kitchenInventories     KitchenInventory[]
+  materialRequests       MaterialRequest[]
+  inventoryTransactions  InventoryTransaction[]
+
   @@index([isActive])
 }
 
@@ -105,6 +116,8 @@ model Product {
   cartItems   CartItem[]
   inventory    Inventory[]
   images      ProductImage[]
+  recipe      Recipe?
+
   @@index([branchId, isAvailable])
   @@index([categoryId])
 }
@@ -295,4 +308,136 @@ model CartItem {
 
   @@unique([cartId, productId])
   @@index([cartId])
+}
+
+// ── New Inventory models ───────────────────────────────
+
+model RawMaterial {
+  id               String               @id @default(uuid())
+  name             String
+  category         String               // e.g. Coffee, Tea, Dairy, etc.
+  sku              String?
+  unit             String               // kg, g, L, ml, pcs, bottle, can, packet, box, bag
+  minStockLevel    Float                @default(0.0)
+  description      String?
+  isActive         Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  mainInventories  MainStoreInventory[]
+  kitchenInventories KitchenInventory[]
+  recipeIngredients RecipeIngredient[]
+  requestItems     MaterialRequestItem[]
+  transactions     InventoryTransaction[]
+}
+
+model MainStoreInventory {
+  id               String      @id @default(uuid())
+  materialId       String
+  material         RawMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  branchId         String
+  branch           Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  quantity         Float       @default(0.0)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@unique([materialId, branchId])
+  @@index([branchId])
+}
+
+model KitchenInventory {
+  id               String      @id @default(uuid())
+  materialId       String
+  material         RawMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  branchId         String
+  branch           Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  quantity         Float       @default(0.0)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@unique([materialId, branchId])
+  @@index([branchId])
+}
+
+model Recipe {
+  id          String             @id @default(uuid())
+  productId   String             @unique
+  product     Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  ingredients RecipeIngredient[]
+}
+
+model RecipeIngredient {
+  id          String      @id @default(uuid())
+  recipeId    String
+  recipe      Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    RawMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  quantity    Float       // Quantity required for this recipe (in unit of RawMaterial)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([recipeId, materialId])
+}
+
+enum RequestStatus {
+  pending
+  approved
+  partially_approved
+  rejected
+}
+
+model MaterialRequest {
+  id            String                @id @default(uuid())
+  branchId      String
+  branch        Branch                @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  status        RequestStatus         @default(pending)
+  notes         String?
+  requestedById String
+  requestedBy   User                  @relation("RequestedRequests", fields: [requestedById], references: [id])
+  approvedById  String?
+  approvedBy    User?                 @relation("ApprovedRequests", fields: [approvedById], references: [id])
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  items         MaterialRequestItem[]
+}
+
+model MaterialRequestItem {
+  id                String          @id @default(uuid())
+  requestId         String
+  request           MaterialRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  materialId        String
+  material          RawMaterial     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  requestedQuantity Float
+  approvedQuantity  Float?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([requestId, materialId])
+}
+
+enum TransactionType {
+  purchase
+  transfer
+  consumption
+  adjustment
+  damaged
+  expired
+}
+
+model InventoryTransaction {
+  id            String          @id @default(uuid())
+  materialId    String
+  material      RawMaterial     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  branchId      String
+  branch        Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  quantity      Float           // positive or negative
+  source        String          // e.g. "MainStore", "Kitchen", "Supplier", "Trash"
+  destination   String          // e.g. "MainStore", "Kitchen", "Trash", "Customer"
+  type          TransactionType
+  actorId       String?
+  actor         User?           @relation("TransactionActor", fields: [actorId], references: [id])
+  notes         String?
+  createdAt     DateTime        @default(now())
 }

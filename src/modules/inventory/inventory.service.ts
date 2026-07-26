@@ -1,12 +1,16 @@
 import {
-  Injectable, NotFoundException,
-  BadRequestException, Logger
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsService } from '../events/events.service';
-import { CreateInventoryDto } from './dto/create-inventory.dto';
-import { AdjustInventoryDto } from './dto/adjust-inventory.dto';
-import { QueryInventoryDto } from './dto/query-inventory.dto';
+import { CreateRawMaterialDto } from './dto/create-raw-material.dto';
+import { AdjustStoreInventoryDto } from './dto/adjust-store-inventory.dto';
+import { CreateMaterialRequestDto } from './dto/create-material-request.dto';
+import { ReviewMaterialRequestDto } from './dto/review-material-request.dto';
+import { CreateRecipeDto } from './dto/create-recipe.dto';
 
 @Injectable()
 export class InventoryService {
@@ -17,50 +21,651 @@ export class InventoryService {
     private readonly events: EventsService,
   ) {}
 
-  // ─── Create inventory record for a product at a branch ──────────────────────
-  // Called by managers when they first start tracking a product
-  async create(dto: CreateInventoryDto, actorId: string) {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 1. Raw Materials Catalog
+  // ─────────────────────────────────────────────────────────────────────────────
 
-    // Check if inventory already exists for this product+branch combination
+  async createRawMaterial(dto: CreateRawMaterialDto) {
+    return this.prisma.rawMaterial.create({
+      data: {
+        name: dto.name,
+        category: dto.category,
+        sku: dto.sku,
+        unit: dto.unit,
+        minStockLevel: dto.minStockLevel ?? 0,
+        description: dto.description,
+      },
+    });
+  }
+
+  async findAllRawMaterials() {
+    return this.prisma.rawMaterial.findMany({
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async updateRawMaterial(id: string, dto: Partial<CreateRawMaterialDto>) {
+    const material = await this.prisma.rawMaterial.findUnique({ where: { id } });
+    if (!material) throw new NotFoundException('Raw material not found');
+
+    return this.prisma.rawMaterial.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 2. Main Store Inventory
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async getMainStoreStock(branchId: string) {
+    return this.prisma.mainStoreInventory.findMany({
+      where: { branchId },
+      include: {
+        material: true,
+      },
+      orderBy: { material: { name: 'asc' } },
+    });
+  }
+
+  async adjustMainStore(
+    branchId: string,
+    materialId: string,
+    dto: AdjustStoreInventoryDto,
+    actorId: string,
+  ) {
+    const material = await this.prisma.rawMaterial.findUnique({ where: { id: materialId } });
+    if (!material) throw new NotFoundException('Raw material not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      // Find or create Main Store Inventory record
+      let stock = await tx.mainStoreInventory.findUnique({
+        where: { materialId_branchId: { materialId, branchId } },
+      });
+
+      if (!stock) {
+        stock = await tx.mainStoreInventory.create({
+          data: {
+            materialId,
+            branchId,
+            quantity: 0,
+          },
+        });
+      }
+
+      const newQuantity = stock.quantity + dto.delta;
+      if (newQuantity < 0) {
+        throw new BadRequestException(
+          `Insufficient stock in Main Store. Current: ${stock.quantity} ${material.unit}`,
+        );
+      }
+
+      // Update quantity
+      const updatedStock = await tx.mainStoreInventory.update({
+        where: { id: stock.id },
+        data: { quantity: newQuantity },
+        include: { material: true },
+      });
+
+      // Record transaction
+      await tx.inventoryTransaction.create({
+        data: {
+          materialId,
+          branchId,
+          quantity: dto.delta,
+          source: dto.delta > 0 ? 'Supplier' : 'MainStore',
+          destination: dto.delta > 0 ? 'MainStore' : 'Trash',
+          type: dto.reason as any,
+          actorId,
+          notes: dto.note,
+        },
+      });
+
+      // Low Stock Notification check
+      if (newQuantity <= material.minStockLevel) {
+        await this.notifyLowStock(branchId, material.name, newQuantity, material.unit, 'Main Store');
+      }
+
+      return updatedStock;
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 3. Kitchen Inventory
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async getKitchenStock(branchId: string) {
+    return this.prisma.kitchenInventory.findMany({
+      where: { branchId },
+      include: {
+        material: true,
+      },
+      orderBy: { material: { name: 'asc' } },
+    });
+  }
+
+  async adjustKitchen(
+    branchId: string,
+    materialId: string,
+    dto: AdjustStoreInventoryDto,
+    actorId: string,
+  ) {
+    const material = await this.prisma.rawMaterial.findUnique({ where: { id: materialId } });
+    if (!material) throw new NotFoundException('Raw material not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      let stock = await tx.kitchenInventory.findUnique({
+        where: { materialId_branchId: { materialId, branchId } },
+      });
+
+      if (!stock) {
+        stock = await tx.kitchenInventory.create({
+          data: {
+            materialId,
+            branchId,
+            quantity: 0,
+          },
+        });
+      }
+
+      const newQuantity = stock.quantity + dto.delta;
+      if (newQuantity < 0) {
+        throw new BadRequestException(
+          `Insufficient stock in Kitchen. Current: ${stock.quantity} ${material.unit}`,
+        );
+      }
+
+      const updatedStock = await tx.kitchenInventory.update({
+        where: { id: stock.id },
+        data: { quantity: newQuantity },
+        include: { material: true },
+      });
+
+      await tx.inventoryTransaction.create({
+        data: {
+          materialId,
+          branchId,
+          quantity: dto.delta,
+          source: dto.delta > 0 ? 'External' : 'Kitchen',
+          destination: dto.delta > 0 ? 'Kitchen' : 'Trash',
+          type: dto.reason as any,
+          actorId,
+          notes: dto.note,
+        },
+      });
+
+      if (newQuantity <= material.minStockLevel) {
+        await this.notifyLowStock(branchId, material.name, newQuantity, material.unit, 'Kitchen');
+      }
+
+      return updatedStock;
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 4. Daily Material Requests Workflow
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async createMaterialRequest(dto: CreateMaterialRequestDto, actorId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const request = await tx.materialRequest.create({
+        data: {
+          branchId: dto.branchId,
+          notes: dto.notes,
+          requestedById: actorId,
+          status: 'pending',
+          items: {
+            create: dto.items.map((item) => ({
+              materialId: item.materialId,
+              requestedQuantity: item.requestedQuantity,
+            })),
+          },
+        },
+        include: {
+          items: {
+            include: { material: true },
+          },
+          requestedBy: { select: { firstName: true, lastName: true } },
+        },
+      });
+
+      // Send real-time notification to all admins/managers
+      const managers = await tx.employee.findMany({
+        where: {
+          branchId: dto.branchId,
+          role: { in: ['manager', 'admin'] },
+        },
+      });
+
+      const senderName = `${request.requestedBy.firstName} ${request.requestedBy.lastName}`.trim();
+
+      for (const mgr of managers) {
+        this.events.emitNotification(
+          mgr.userId,
+          `New material request submitted by ${senderName}`,
+          {
+            type: 'new_material_request',
+            requestId: request.id,
+            notes: request.notes,
+          },
+        );
+      }
+
+      return request;
+    });
+  }
+
+  async getMaterialRequests(branchId?: string) {
+    return this.prisma.materialRequest.findMany({
+      where: branchId ? { branchId } : {},
+      include: {
+        items: { include: { material: true } },
+        requestedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getMaterialRequestById(id: string) {
+    const request = await this.prisma.materialRequest.findUnique({
+      where: { id },
+      include: {
+        items: { include: { material: true } },
+        requestedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+    if (!request) throw new NotFoundException('Material request not found');
+    return request;
+  }
+
+  async reviewMaterialRequest(
+    requestId: string,
+    dto: ReviewMaterialRequestDto,
+    actorId: string,
+  ) {
+    const request = await this.prisma.materialRequest.findUnique({
+      where: { id: requestId },
+      include: { items: { include: { material: true } } },
+    });
+    if (!request) throw new NotFoundException('Material request not found');
+    if (request.status !== 'pending') {
+      throw new BadRequestException('Request has already been processed');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. If approved or partially approved, transfer quantities
+      if (dto.status === 'approved' || dto.status === 'partially_approved') {
+        for (const item of request.items) {
+          // Look for customized approved quantity, or default to requested quantity
+          const approvedItem = dto.items?.find((i) => i.materialId === item.materialId);
+          const quantityToTransfer = approvedItem
+            ? approvedItem.approvedQuantity
+            : item.requestedQuantity;
+
+          if (quantityToTransfer <= 0) continue;
+
+          // Deduct from Main Store
+          const mainStock = await tx.mainStoreInventory.findUnique({
+            where: {
+              materialId_branchId: {
+                materialId: item.materialId,
+                branchId: request.branchId,
+              },
+            },
+          });
+
+          if (!mainStock || mainStock.quantity < quantityToTransfer) {
+            throw new BadRequestException(
+              `Insufficient stock in Main Store for ${item.material.name}. ` +
+              `Available: ${mainStock?.quantity ?? 0}, Required: ${quantityToTransfer}`,
+            );
+          }
+
+          await tx.mainStoreInventory.update({
+            where: { id: mainStock.id },
+            data: { quantity: mainStock.quantity - quantityToTransfer },
+          });
+
+          // Add to Kitchen Inventory
+          let kitchenStock = await tx.kitchenInventory.findUnique({
+            where: {
+              materialId_branchId: {
+                materialId: item.materialId,
+                branchId: request.branchId,
+              },
+            },
+          });
+
+          if (!kitchenStock) {
+            kitchenStock = await tx.kitchenInventory.create({
+              data: {
+                materialId: item.materialId,
+                branchId: request.branchId,
+                quantity: 0,
+              },
+            });
+          }
+
+          await tx.kitchenInventory.update({
+            where: { id: kitchenStock.id },
+            data: { quantity: kitchenStock.quantity + quantityToTransfer },
+          });
+
+          // Update item's approved quantity in the request
+          await tx.materialRequestItem.update({
+            where: { id: item.id },
+            data: { approvedQuantity: quantityToTransfer },
+          });
+
+          // Log Transfer Transaction
+          await tx.inventoryTransaction.create({
+            data: {
+              materialId: item.materialId,
+              branchId: request.branchId,
+              quantity: quantityToTransfer,
+              source: 'MainStore',
+              destination: 'Kitchen',
+              type: 'transfer',
+              actorId,
+              notes: `Approved request ${request.id}`,
+            },
+          });
+        }
+      }
+
+      // Update request status
+      const updatedRequest = await tx.materialRequest.update({
+        where: { id: requestId },
+        data: {
+          status: dto.status,
+          approvedById: actorId,
+          notes: dto.notes,
+        },
+        include: {
+          items: { include: { material: true } },
+          requestedBy: { select: { id: true, email: true } },
+        },
+      });
+
+      // Notify the requester
+      const statusText = dto.status.replace('_', ' ').toUpperCase();
+      this.events.emitNotification(
+        updatedRequest.requestedById,
+        `Your daily material request was ${statusText}`,
+        {
+          type: 'material_request_reviewed',
+          requestId: updatedRequest.id,
+          status: updatedRequest.status,
+        },
+      );
+
+      return updatedRequest;
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 5. Recipe Management
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async createOrUpdateRecipe(dto: CreateRecipeDto) {
+    const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+    if (!product) throw new NotFoundException('Product not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      // Find or create Recipe
+      let recipe = await tx.recipe.findUnique({
+        where: { productId: dto.productId },
+      });
+
+      if (!recipe) {
+        recipe = await tx.recipe.create({
+          data: { productId: dto.productId },
+        });
+      } else {
+        // Clear old ingredients to replace them
+        await tx.recipeIngredient.deleteMany({
+          where: { recipeId: recipe.id },
+        });
+      }
+
+      // Add ingredients
+      await tx.recipeIngredient.createMany({
+        data: dto.ingredients.map((ing) => ({
+          recipeId: recipe.id,
+          materialId: ing.materialId,
+          quantity: ing.quantity,
+        })),
+      });
+
+      return tx.recipe.findUnique({
+        where: { id: recipe.id },
+        include: {
+          ingredients: { include: { material: true } },
+        },
+      });
+    });
+  }
+
+  async getRecipe(productId: string) {
+    return this.prisma.recipe.findUnique({
+      where: { productId },
+      include: {
+        ingredients: { include: { material: true } },
+      },
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 6. Automatic Ingredient Consumption on Orders
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async consumeIngredientsForOrder(orderId: string, branchId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+
+    if (!order) {
+      this.logger.error(`consumeIngredientsForOrder failed: Order ${orderId} not found`);
+      return;
+    }
+
+    this.logger.log(`Deducting recipe ingredients from Kitchen Inventory for Order #${order.orderNumber}`);
+
+    for (const item of order.items) {
+      const recipe = await this.prisma.recipe.findUnique({
+        where: { productId: item.productId },
+        include: { ingredients: true },
+      });
+
+      if (!recipe || recipe.ingredients.length === 0) {
+        continue;
+      }
+
+      for (const ingredient of recipe.ingredients) {
+        const quantityToDeduct = ingredient.quantity * item.quantity;
+
+        await this.prisma.$transaction(async (tx) => {
+          let kitchenStock = await tx.kitchenInventory.findUnique({
+            where: {
+              materialId_branchId: {
+                materialId: ingredient.materialId,
+                branchId,
+              },
+            },
+          });
+
+          // Even if stock doesn't exist, we create the record to track deduction (allow it to go negative)
+          if (!kitchenStock) {
+            kitchenStock = await tx.kitchenInventory.create({
+              data: {
+                materialId: ingredient.materialId,
+                branchId,
+                quantity: 0,
+              },
+            });
+          }
+
+          const newQuantity = kitchenStock.quantity - quantityToDeduct;
+
+          await tx.kitchenInventory.update({
+            where: { id: kitchenStock.id },
+            data: { quantity: newQuantity },
+          });
+
+          // Log transaction
+          await tx.inventoryTransaction.create({
+            data: {
+              materialId: ingredient.materialId,
+              branchId,
+              quantity: -quantityToDeduct,
+              source: 'Kitchen',
+              destination: 'Customer',
+              type: 'consumption',
+              notes: `Automatic deduction for order #${order.orderNumber}`,
+            },
+          });
+        });
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 7. Audit Trail / Transaction History
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async getTransactionHistory(branchId?: string) {
+    return this.prisma.inventoryTransaction.findMany({
+      where: branchId ? { branchId } : {},
+      include: {
+        material: true,
+        actor: { select: { id: true, email: true, firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100, // safety cap
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Helper Notification Method
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  private async notifyLowStock(
+    branchId: string,
+    materialName: string,
+    currentQuantity: number,
+    unit: string,
+    location: 'Main Store' | 'Kitchen',
+  ) {
+    const managers = await this.prisma.employee.findMany({
+      where: {
+        branchId,
+        role: { in: ['manager', 'admin'] },
+      },
+    });
+
+    for (const mgr of managers) {
+      this.events.emitNotification(
+        mgr.userId,
+        `LOW STOCK alert in ${location}: ${materialName} (${currentQuantity} ${unit} remaining)`,
+        {
+          type: 'low_stock_raw_material',
+          materialName,
+          currentQuantity,
+          unit,
+          location,
+        },
+      );
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 8. Legacy / Product-Based Stock (maintaining compatibility with existing endpoints)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // ─── Order deduction — called internally when payment is confirmed ───────────
+  async deductForOrder(
+    orderId: string,
+    branchId: string,
+    items: Array<{ productId: string; quantity: number }>,
+  ) {
+    // 1. First, automatically consume ingredients from Kitchen Inventory based on recipes
+    await this.consumeIngredientsForOrder(orderId, branchId);
+
+    // 2. Fallback: also deduct legacy product-level stock if tracked in the old Inventory table
+    for (const item of items) {
+      const inventory = await this.prisma.inventory.findUnique({
+        where: {
+          productId_branchId: {
+            productId: item.productId,
+            branchId,
+          },
+        },
+      });
+
+      if (!inventory) continue;
+
+      const newQuantity = Math.max(0, inventory.currentQuantity - item.quantity);
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.inventoryLog.create({
+          data: {
+            inventoryId: inventory.id,
+            delta: -item.quantity,
+            reason: 'order_deduction',
+            note: `Order deduction for order ID: ${orderId}`,
+            quantityBefore: inventory.currentQuantity,
+            quantityAfter: newQuantity,
+            orderId,
+          },
+        });
+
+        await tx.inventory.update({
+          where: { id: inventory.id },
+          data: { currentQuantity: newQuantity },
+        });
+      });
+    }
+  }
+
+  async create(dto: any, actorId: string) {
     const existing = await this.prisma.inventory.findUnique({
       where: {
         productId_branchId: {
           productId: dto.productId,
-          branchId:  dto.branchId,
+          branchId: dto.branchId,
         },
       },
     });
 
     if (existing) {
       throw new BadRequestException(
-        'Inventory record already exists for this product at this branch'
+        'Inventory record already exists for this product at this branch',
       );
     }
 
-    // Create inventory + first log entry in one transaction
     return this.prisma.$transaction(async (tx) => {
-
       const inventory = await tx.inventory.create({
         data: {
-          productId:        dto.productId,
-          branchId:         dto.branchId,
-          currentQuantity:  dto.openingQuantity,
+          productId: dto.productId,
+          branchId: dto.branchId,
+          currentQuantity: dto.openingQuantity,
           reorderThreshold: dto.reorderThreshold ?? 10,
-          unit:             dto.unit ?? 'units',
+          unit: dto.unit ?? 'units',
         },
       });
 
-      // Record the opening stock as the first log entry
-      // This means the audit trail starts from day one — no mystery stock
       if (dto.openingQuantity > 0) {
         await tx.inventoryLog.create({
           data: {
-            inventoryId:    inventory.id,
-            delta:          dto.openingQuantity,  // positive — stock added
-            reason:         'opening_stock',
-            note:           'Initial stock',
+            inventoryId: inventory.id,
+            delta: dto.openingQuantity,
+            reason: 'opening_stock',
+            note: 'Initial stock',
             quantityBefore: 0,
-            quantityAfter:  dto.openingQuantity,
+            quantityAfter: dto.openingQuantity,
             actorId,
           },
         });
@@ -70,154 +675,69 @@ export class InventoryService {
     });
   }
 
-  // ─── Manual adjustment ───────────────────────────────────────────────────────
-  // Manager adds stock (delivery), removes (wastage), or corrects (count mismatch)
-  async adjust(inventoryId: string, dto: AdjustInventoryDto, actorId: string) {
-
+  async adjust(inventoryId: string, dto: any, actorId: string) {
     const inventory = await this.prisma.inventory.findUnique({
-      where:   { id: inventoryId },
+      where: { id: inventoryId },
       include: { branch: true, product: true },
     });
 
     if (!inventory) throw new NotFoundException('Inventory record not found');
 
-    // Validate the resulting quantity won't go negative
-    // You can't have -5 kg of coffee beans
     const newQuantity = inventory.currentQuantity + dto.delta;
     if (newQuantity < 0) {
       throw new BadRequestException(
-        `Cannot remove ${Math.abs(dto.delta)} ${inventory.unit} — ` +
-        `only ${inventory.currentQuantity} ${inventory.unit} in stock`
+        `Cannot remove ${Math.abs(dto.delta)} — insufficient stock`,
       );
     }
 
-    // Update inventory + write log in one transaction
     const updated = await this.prisma.$transaction(async (tx) => {
-
-      // Write the log FIRST — before updating the quantity
-      // This way if the update fails, the log also rolls back
       await tx.inventoryLog.create({
         data: {
           inventoryId,
-          delta:          dto.delta,
-          reason:         dto.reason as any,
-          note:           dto.note,
+          delta: dto.delta,
+          reason: dto.reason as any,
+          note: dto.note,
           quantityBefore: inventory.currentQuantity,
-          quantityAfter:  newQuantity,
+          quantityAfter: newQuantity,
           actorId,
         },
       });
 
       return tx.inventory.update({
         where: { id: inventoryId },
-        data:  { currentQuantity: newQuantity },
+        data: { currentQuantity: newQuantity },
         include: { product: true, branch: true },
       });
     });
 
-    // Check if this adjustment pushed stock to a low level
-    await this.checkAndNotifyLowStock(updated);
-
     return updated;
   }
 
-  // ─── Order deduction — called internally when payment is confirmed ───────────
-  // This is NOT exposed as an HTTP endpoint — it's called by PaymentsService
-  // When a customer pays, we deduct the ordered quantities from stock
-  async deductForOrder(
-    orderId:  string,
-    branchId: string,
-    items: Array<{ productId: string; quantity: number }>,
-  ) {
-    // Process each item in the order
-    for (const item of items) {
-
-      // Find the inventory record for this product at this branch
-      const inventory = await this.prisma.inventory.findUnique({
-        where: {
-          productId_branchId: {
-            productId: item.productId,
-            branchId,
-          },
-        },
-        include: { branch: true, product: true },
-      });
-
-      // If no inventory record exists, skip silently
-      // Not all products are tracked — some cafes don't track every ingredient
-      if (!inventory) {
-        this.logger.warn(
-          `No inventory record for product ${item.productId} at branch ${branchId} — skipping deduction`
-        );
-        continue;
-      }
-
-      // Calculate new quantity — allow it to go to 0 but warn
-      const newQuantity = Math.max(0, inventory.currentQuantity - item.quantity);
-
-      await this.prisma.$transaction(async (tx) => {
-
-        await tx.inventoryLog.create({
-          data: {
-            inventoryId:    inventory.id,
-            delta:          -item.quantity,   // negative = stock removed
-            reason:         'order_deduction',
-            note:           `Order deduction for order ID: ${orderId}`,
-            quantityBefore: inventory.currentQuantity,
-            quantityAfter:  newQuantity,
-            orderId,
-            // actorId is null — this is system-generated, not a human action
-          },
-        });
-
-        await tx.inventory.update({
-          where: { id: inventory.id },
-          data:  { currentQuantity: newQuantity },
-        });
-      });
-
-      // Check low stock after every deduction
-      const refreshed = await this.prisma.inventory.findUnique({
-        where:   { id: inventory.id },
-        include: { branch: true, product: true },
-      });
-
-      if (refreshed) await this.checkAndNotifyLowStock(refreshed);
-    }
-  }
-
-  // ─── Get all inventory — with optional filters ───────────────────────────────
-  findAll(query: QueryInventoryDto) {
+  findAll(query: any) {
     return this.prisma.inventory.findMany({
       where: {
         ...(query.branchId && { branchId: query.branchId }),
-
-        // Low stock filter — items where currentQuantity <= reorderThreshold
-        // Prisma doesn't support "field <= other field" directly
-        // So we use a raw filter with lte on a computed expression
         ...(query.lowStockOnly && {
-          currentQuantity: { lte: 10 }, // simplified — see note below
+          currentQuantity: { lte: 10 },
         }),
       },
       include: {
         product: { select: { id: true, name: true, price: true } },
-        branch:  { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
       },
-      orderBy: { currentQuantity: 'asc' }, // lowest stock first
+      orderBy: { currentQuantity: 'asc' },
     });
   }
 
-  // ─── Get one inventory with full log history ─────────────────────────────────
   async findOne(id: string) {
     const inventory = await this.prisma.inventory.findUnique({
-      where:   { id },
+      where: { id },
       include: {
         product: true,
-        branch:  true,
-        // Last 20 log entries, newest first
+        branch: true,
         logs: {
           orderBy: { createdAt: 'desc' },
-          take:    20,
+          take: 20,
           include: {
             actor: { select: { id: true, email: true } },
             order: { select: { id: true, orderNumber: true } },
@@ -228,43 +748,5 @@ export class InventoryService {
 
     if (!inventory) throw new NotFoundException('Inventory record not found');
     return inventory;
-  }
-
-  // ─── Private: check and fire low stock alert ─────────────────────────────────
-  // Called after every stock change — deduction or manual adjustment
-  private async checkAndNotifyLowStock(inventory: any) {
-
-    if (inventory.currentQuantity <= inventory.reorderThreshold) {
-      this.logger.warn(
-        `LOW STOCK: ${inventory.product.name} at ${inventory.branch.name} — ` +
-        `${inventory.currentQuantity} ${inventory.unit} remaining`
-      );
-
-      // Find all managers at this branch to notify them
-      const managers = await this.prisma.employee.findMany({
-        where: {
-          branchId: inventory.branchId,
-          role:     { in: ['manager', 'admin'] },
-        },
-        include: { user: true },
-      });
-
-      // Fire Socket.io notification to each manager's personal room
-      for (const manager of managers) {
-        this.events.emitNotification(
-          manager.userId,
-          `Low stock alert: ${inventory.product.name}`,
-          {
-            type:             'low_stock',
-            inventoryId:      inventory.id,
-            productName:      inventory.product.name,
-            currentQuantity:  inventory.currentQuantity,
-            reorderThreshold: inventory.reorderThreshold,
-            unit:             inventory.unit,
-            branchName:       inventory.branch.name,
-          },
-        );
-      }
-    }
   }
 }
