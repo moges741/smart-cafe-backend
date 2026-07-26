@@ -45,7 +45,12 @@ export class UsersService {
 
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { email: dto.email, passwordHash, roleId: role.id },
+        data: {
+          email: dto.email,
+          passwordHash,
+          roleId: role.id,
+          isEmailVerified: true, // Admin-created staff accounts are verified by default
+        },
       });
 
       if (dto.branchId) {
@@ -100,19 +105,37 @@ export class UsersService {
   }
 
   async getCashiersByBranch(branchId: string) {
-    return this.prisma.user.findMany({
+    // 1. Query active cashiers or managers assigned to this branch
+    let users = await this.prisma.user.findMany({
       where: {
         isActive: true,
-        isEmailVerified: true,
-        role: { name: 'cashier' },
-        employee: { branchId }
+        role: { name: { in: ['cashier', 'manager'] } },
+        employee: { branchId },
       },
       select: {
         id: true,
         email: true,
         firstName: true,
         lastName: true,
-      }
+      },
     });
+
+    // 2. Fallback: If no cashier/manager is specifically assigned to this branch, get all active admin & manager users
+    if (!users || users.length === 0) {
+      users = await this.prisma.user.findMany({
+        where: {
+          isActive: true,
+          role: { name: { in: ['admin', 'manager'] } },
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+        },
+      });
+    }
+
+    return users;
   }
 }

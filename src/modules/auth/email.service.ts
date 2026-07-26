@@ -44,6 +44,8 @@ export class EmailService {
   @OnEvent('order.created', { async: true })
   async handleOrderCreated(order: any) {
     try {
+      this.logger.log(`Processing order.created event for order ID: ${order?.id}`);
+
       const fullOrder = await this.prisma.order.findUnique({
         where: { id: order.id },
         include: {
@@ -54,16 +56,23 @@ export class EmailService {
         },
       });
 
-      if (!fullOrder) return;
+      if (!fullOrder) {
+        this.logger.error(`Order with ID ${order?.id} not found in database.`);
+        return;
+      }
 
       const cashiers = await this.usersService.getCashiersByBranch(fullOrder.branchId);
 
       if (!cashiers || cashiers.length === 0) {
         this.logger.warn(
-          `No active verified cashiers found for branch ${fullOrder.branch?.name ?? fullOrder.branchId}`,
+          `No active cashiers/managers/admins found to receive notification for branch "${fullOrder.branch?.name ?? fullOrder.branchId}"`,
         );
         return;
       }
+
+      this.logger.log(
+        `Notifying ${cashiers.length} staff recipient(s) for Order #${fullOrder.orderNumber}: ${cashiers.map((c) => c.email).join(', ')}`,
+      );
 
       const orderTypeFormatted = fullOrder.type === 'dine_in' ? 'Dine In' : 'Takeaway';
       const paymentMethod = fullOrder.payment?.method
