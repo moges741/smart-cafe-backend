@@ -130,6 +130,76 @@ export class InventoryService {
     });
   }
 
+  async takeMaterialFromStore(
+    branchId: string,
+    dto: { materialId: string; quantity: number; notes?: string },
+    actorId: string,
+  ) {
+    if (dto.quantity <= 0) {
+      throw new BadRequestException('Quantity must be greater than 0');
+    }
+
+    const material = await this.prisma.rawMaterial.findUnique({ where: { id: dto.materialId } });
+    if (!material) throw new NotFoundException('Raw material not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      const mainStock = await tx.mainStoreInventory.findUnique({
+        where: { materialId_branchId: { materialId: dto.materialId, branchId } },
+      });
+
+      const currentQty = mainStock?.quantity ?? 0;
+      if (currentQty < dto.quantity) {
+        throw new BadRequestException(
+          `Cannot withdraw ${dto.quantity} ${material.unit}. Insufficient stock in Main Store (Available: ${currentQty} ${material.unit}).`,
+        );
+      }
+
+      const updatedMainStock = await tx.mainStoreInventory.update({
+        where: { id: mainStock!.id },
+        data: { quantity: currentQty - dto.quantity },
+      });
+
+      let kitchenStock = await tx.kitchenInventory.findUnique({
+        where: { materialId_branchId: { materialId: dto.materialId, branchId } },
+      });
+
+      if (!kitchenStock) {
+        kitchenStock = await tx.kitchenInventory.create({
+          data: {
+            materialId: dto.materialId,
+            branchId,
+            quantity: 0,
+          },
+        });
+      }
+
+      const updatedKitchenStock = await tx.kitchenInventory.update({
+        where: { id: kitchenStock.id },
+        data: { quantity: kitchenStock.quantity + dto.quantity },
+        include: { material: true },
+      });
+
+      await tx.inventoryTransaction.create({
+        data: {
+          materialId: dto.materialId,
+          branchId,
+          quantity: dto.quantity,
+          source: 'MainStore',
+          destination: 'Kitchen',
+          type: 'transfer',
+          actorId,
+          notes: dto.notes ? `Direct kitchen withdraw: ${dto.notes}` : 'Direct kitchen ingredient withdraw',
+        },
+      });
+
+      if (updatedMainStock.quantity <= material.minStockLevel) {
+        await this.notifyLowStock(branchId, material.name, updatedMainStock.quantity, material.unit, 'Main Store');
+      }
+
+      return updatedKitchenStock;
+    });
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // 3. Kitchen Inventory
   // ─────────────────────────────────────────────────────────────────────────────

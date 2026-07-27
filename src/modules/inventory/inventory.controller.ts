@@ -57,7 +57,7 @@ export class InventoryController {
   // ─────────────────────────────────────────────────────────────────────────────
 
   @Get('main-store')
-  @Roles('admin', 'manager')
+  @Roles('admin', 'manager', 'kitchen')
   @ApiOperation({ summary: 'Get main store stock for a branch' })
   getMainStoreStock(@Query('branchId') branchId: string) {
     return this.inventoryService.getMainStoreStock(branchId);
@@ -73,6 +73,17 @@ export class InventoryController {
     @CurrentUser() user: any,
   ) {
     return this.inventoryService.adjustMainStore(branchId, materialId, dto, user.id);
+  }
+
+  @Post('take-from-store')
+  @Roles('admin', 'manager', 'kitchen')
+  @ApiOperation({ summary: 'Kitchen directly withdraws ingredients from Main Store' })
+  takeMaterialFromStore(
+    @Query('branchId') branchId: string,
+    @Body() dto: { materialId: string; quantity: number; notes?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.inventoryService.takeMaterialFromStore(branchId, dto, user.id);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -160,7 +171,7 @@ export class InventoryController {
   // ─────────────────────────────────────────────────────────────────────────────
 
   @Get('transactions')
-  @Roles('admin', 'manager')
+  @Roles('admin', 'manager', 'kitchen')
   @ApiOperation({ summary: 'Get transaction logs history' })
   getTransactionHistory(@Query('branchId') branchId?: string) {
     return this.inventoryService.getTransactionHistory(branchId);
