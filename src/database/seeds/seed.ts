@@ -14,7 +14,15 @@ async function main() {
   console.log('🌱 Seeding database...');
 
   // ── Roles ────────────────────────────────────────────
-  const roleNames = ['admin', 'manager', 'cashier', 'waiter', 'barista', 'kitchen', 'customer'];
+  const roleNames = [
+    'admin',
+    'manager',
+    'cashier',
+    'waiter',
+    'barista',
+    'kitchen',
+    'customer',
+  ];
 
   for (const name of roleNames) {
     await prisma.role.upsert({
@@ -26,34 +34,49 @@ async function main() {
   }
 
   // ── Admin user ────────────────────────────────────────
-  const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
-  if (!adminRole) throw new Error('Admin role not found after seeding');
+  const adminRole = await prisma.role.findUnique({
+    where: { name: 'admin' },
+  });
 
-  const passwordHash = await bcrypt.hash('Admin@123456', 10);
+  if (!adminRole) {
+    throw new Error('Admin role not found after seeding');
+  }
+
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminEmail || !adminPassword) {
+    throw new Error(
+      'ADMIN_EMAIL and ADMIN_PASSWORD must be set in the .env file.',
+    );
+  }
+
+  const passwordHash = await bcrypt.hash(adminPassword, 10);
 
   await prisma.user.upsert({
-    where: { email: 'admin@smartcafe.com' },
+    where: { email: adminEmail },
     update: {},
     create: {
-      email: 'admin@smartcafe.com',
+      email: adminEmail,
       passwordHash,
       roleId: adminRole.id,
     },
   });
-  console.log('  ✓ Admin user → admin@smartcafe.com / Admin@123456');
+
+  console.log(`  ✓ Admin user → ${adminEmail} / ${adminPassword}`);
 
   // ── Default branch ────────────────────────────────────
-  // where.id and create.id MUST be the same value
   const branch = await prisma.branch.upsert({
-    where: { id: DEFAULT_BRANCH_ID },   // ← look up by this
-    update: {},                          // ← if found, do nothing
+    where: { id: DEFAULT_BRANCH_ID },
+    update: {},
     create: {
-      id: DEFAULT_BRANCH_ID,            // ← if not found, create with this same id
+      id: DEFAULT_BRANCH_ID,
       name: 'Main Branch',
       address: 'Bole Road, Addis Ababa',
       timezone: 'Africa/Addis_Ababa',
     },
   });
+
   console.log(`  ✓ Branch "${branch.name}" — id: ${branch.id}`);
 
   console.log('✅ Seeding complete.');
