@@ -58,7 +58,7 @@ export class ProductsController {
 
   @Patch(':id/toggle-availability')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'manager', 'cashier')
+  @Roles('admin', 'manager', 'cashier', 'kitchen', 'waiter')
   @ApiOperation({ summary: 'Toggle product availability on/off' })
   toggle(@Param('id') id: string) {
     return this.productsService.toggleAvailability(id);

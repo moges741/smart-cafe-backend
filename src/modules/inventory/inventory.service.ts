@@ -58,13 +58,41 @@ export class InventoryService {
   // 2. Main Store Inventory
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async getMainStoreStock(branchId: string) {
-    return this.prisma.mainStoreInventory.findMany({
-      where: { branchId },
-      include: {
-        material: true,
-      },
-      orderBy: { material: { name: 'asc' } },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 2. Main Store Inventory
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async getMainStoreStock(branchId?: string) {
+    const rawMaterials = await this.prisma.rawMaterial.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+    });
+
+    let effectiveBranchId = branchId;
+    if (!effectiveBranchId || effectiveBranchId === 'null' || effectiveBranchId === 'undefined') {
+      const defaultBranch = await this.prisma.branch.findFirst({ where: { isActive: true } });
+      effectiveBranchId = defaultBranch?.id;
+    }
+
+    const existingStock = effectiveBranchId
+      ? await this.prisma.mainStoreInventory.findMany({
+          where: { branchId: effectiveBranchId },
+        })
+      : [];
+
+    const stockMap = new Map(existingStock.map((s) => [s.materialId, s]));
+
+    return rawMaterials.map((material) => {
+      const stock = stockMap.get(material.id);
+      return {
+        id: stock?.id ?? `temp-${material.id}`,
+        materialId: material.id,
+        material,
+        branchId: effectiveBranchId ?? '',
+        quantity: stock?.quantity ?? 0,
+        createdAt: stock?.createdAt ?? material.createdAt,
+        updatedAt: stock?.updatedAt ?? material.updatedAt,
+      };
     });
   }
 
@@ -74,20 +102,25 @@ export class InventoryService {
     dto: AdjustStoreInventoryDto,
     actorId: string,
   ) {
+    let effectiveBranchId = branchId;
+    if (!effectiveBranchId || effectiveBranchId === 'null' || effectiveBranchId === 'undefined') {
+      const defaultBranch = await this.prisma.branch.findFirst({ where: { isActive: true } });
+      effectiveBranchId = defaultBranch?.id ?? '';
+    }
+
     const material = await this.prisma.rawMaterial.findUnique({ where: { id: materialId } });
     if (!material) throw new NotFoundException('Raw material not found');
 
     return this.prisma.$transaction(async (tx) => {
-      // Find or create Main Store Inventory record
       let stock = await tx.mainStoreInventory.findUnique({
-        where: { materialId_branchId: { materialId, branchId } },
+        where: { materialId_branchId: { materialId, branchId: effectiveBranchId } },
       });
 
       if (!stock) {
         stock = await tx.mainStoreInventory.create({
           data: {
             materialId,
-            branchId,
+            branchId: effectiveBranchId,
             quantity: 0,
           },
         });
@@ -100,18 +133,16 @@ export class InventoryService {
         );
       }
 
-      // Update quantity
       const updatedStock = await tx.mainStoreInventory.update({
         where: { id: stock.id },
         data: { quantity: newQuantity },
         include: { material: true },
       });
 
-      // Record transaction
       await tx.inventoryTransaction.create({
         data: {
           materialId,
-          branchId,
+          branchId: effectiveBranchId,
           quantity: dto.delta,
           source: dto.delta > 0 ? 'Supplier' : 'MainStore',
           destination: dto.delta > 0 ? 'MainStore' : 'Trash',
@@ -121,9 +152,8 @@ export class InventoryService {
         },
       });
 
-      // Low Stock Notification check
       if (newQuantity <= material.minStockLevel) {
-        await this.notifyLowStock(branchId, material.name, newQuantity, material.unit, 'Main Store');
+        await this.notifyLowStock(effectiveBranchId, material.name, newQuantity, material.unit, 'Main Store');
       }
 
       return updatedStock;
@@ -139,12 +169,18 @@ export class InventoryService {
       throw new BadRequestException('Quantity must be greater than 0');
     }
 
+    let effectiveBranchId = branchId;
+    if (!effectiveBranchId || effectiveBranchId === 'null' || effectiveBranchId === 'undefined') {
+      const defaultBranch = await this.prisma.branch.findFirst({ where: { isActive: true } });
+      effectiveBranchId = defaultBranch?.id ?? '';
+    }
+
     const material = await this.prisma.rawMaterial.findUnique({ where: { id: dto.materialId } });
     if (!material) throw new NotFoundException('Raw material not found');
 
     return this.prisma.$transaction(async (tx) => {
       const mainStock = await tx.mainStoreInventory.findUnique({
-        where: { materialId_branchId: { materialId: dto.materialId, branchId } },
+        where: { materialId_branchId: { materialId: dto.materialId, branchId: effectiveBranchId } },
       });
 
       const currentQty = mainStock?.quantity ?? 0;
@@ -160,14 +196,14 @@ export class InventoryService {
       });
 
       let kitchenStock = await tx.kitchenInventory.findUnique({
-        where: { materialId_branchId: { materialId: dto.materialId, branchId } },
+        where: { materialId_branchId: { materialId: dto.materialId, branchId: effectiveBranchId } },
       });
 
       if (!kitchenStock) {
         kitchenStock = await tx.kitchenInventory.create({
           data: {
             materialId: dto.materialId,
-            branchId,
+            branchId: effectiveBranchId,
             quantity: 0,
           },
         });
@@ -182,7 +218,7 @@ export class InventoryService {
       await tx.inventoryTransaction.create({
         data: {
           materialId: dto.materialId,
-          branchId,
+          branchId: effectiveBranchId,
           quantity: dto.quantity,
           source: 'MainStore',
           destination: 'Kitchen',
@@ -193,7 +229,7 @@ export class InventoryService {
       });
 
       if (updatedMainStock.quantity <= material.minStockLevel) {
-        await this.notifyLowStock(branchId, material.name, updatedMainStock.quantity, material.unit, 'Main Store');
+        await this.notifyLowStock(effectiveBranchId, material.name, updatedMainStock.quantity, material.unit, 'Main Store');
       }
 
       return updatedKitchenStock;
@@ -204,13 +240,37 @@ export class InventoryService {
   // 3. Kitchen Inventory
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async getKitchenStock(branchId: string) {
-    return this.prisma.kitchenInventory.findMany({
-      where: { branchId },
-      include: {
-        material: true,
-      },
-      orderBy: { material: { name: 'asc' } },
+  async getKitchenStock(branchId?: string) {
+    const rawMaterials = await this.prisma.rawMaterial.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+    });
+
+    let effectiveBranchId = branchId;
+    if (!effectiveBranchId || effectiveBranchId === 'null' || effectiveBranchId === 'undefined') {
+      const defaultBranch = await this.prisma.branch.findFirst({ where: { isActive: true } });
+      effectiveBranchId = defaultBranch?.id;
+    }
+
+    const existingStock = effectiveBranchId
+      ? await this.prisma.kitchenInventory.findMany({
+          where: { branchId: effectiveBranchId },
+        })
+      : [];
+
+    const stockMap = new Map(existingStock.map((s) => [s.materialId, s]));
+
+    return rawMaterials.map((material) => {
+      const stock = stockMap.get(material.id);
+      return {
+        id: stock?.id ?? `temp-kitchen-${material.id}`,
+        materialId: material.id,
+        material,
+        branchId: effectiveBranchId ?? '',
+        quantity: stock?.quantity ?? 0,
+        createdAt: stock?.createdAt ?? material.createdAt,
+        updatedAt: stock?.updatedAt ?? material.updatedAt,
+      };
     });
   }
 
@@ -220,19 +280,25 @@ export class InventoryService {
     dto: AdjustStoreInventoryDto,
     actorId: string,
   ) {
+    let effectiveBranchId = branchId;
+    if (!effectiveBranchId || effectiveBranchId === 'null' || effectiveBranchId === 'undefined') {
+      const defaultBranch = await this.prisma.branch.findFirst({ where: { isActive: true } });
+      effectiveBranchId = defaultBranch?.id ?? '';
+    }
+
     const material = await this.prisma.rawMaterial.findUnique({ where: { id: materialId } });
     if (!material) throw new NotFoundException('Raw material not found');
 
     return this.prisma.$transaction(async (tx) => {
       let stock = await tx.kitchenInventory.findUnique({
-        where: { materialId_branchId: { materialId, branchId } },
+        where: { materialId_branchId: { materialId, branchId: effectiveBranchId } },
       });
 
       if (!stock) {
         stock = await tx.kitchenInventory.create({
           data: {
             materialId,
-            branchId,
+            branchId: effectiveBranchId,
             quantity: 0,
           },
         });
@@ -254,7 +320,7 @@ export class InventoryService {
       await tx.inventoryTransaction.create({
         data: {
           materialId,
-          branchId,
+          branchId: effectiveBranchId,
           quantity: dto.delta,
           source: dto.delta > 0 ? 'External' : 'Kitchen',
           destination: dto.delta > 0 ? 'Kitchen' : 'Trash',
@@ -265,7 +331,7 @@ export class InventoryService {
       });
 
       if (newQuantity <= material.minStockLevel) {
-        await this.notifyLowStock(branchId, material.name, newQuantity, material.unit, 'Kitchen');
+        await this.notifyLowStock(effectiveBranchId, material.name, newQuantity, material.unit, 'Kitchen');
       }
 
       return updatedStock;

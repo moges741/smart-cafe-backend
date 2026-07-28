@@ -17,12 +17,13 @@ import { ReviewMaterialRequestDto } from './dto/review-material-request.dto';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { BranchAccessGuard } from '../../common/guards/branch-access.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Inventory')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, BranchAccessGuard)
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
@@ -59,7 +60,7 @@ export class InventoryController {
   @Get('main-store')
   @Roles('admin', 'manager', 'kitchen')
   @ApiOperation({ summary: 'Get main store stock for a branch' })
-  getMainStoreStock(@Query('branchId') branchId: string) {
+  getMainStoreStock(@Query('branchId') branchId?: string) {
     return this.inventoryService.getMainStoreStock(branchId);
   }
 
@@ -93,7 +94,7 @@ export class InventoryController {
   @Get('kitchen')
   @Roles('admin', 'manager', 'kitchen', 'cashier', 'barista')
   @ApiOperation({ summary: 'Get kitchen operational stock for a branch' })
-  getKitchenStock(@Query('branchId') branchId: string) {
+  getKitchenStock(@Query('branchId') branchId?: string) {
     return this.inventoryService.getKitchenStock(branchId);
   }
 

@@ -10,6 +10,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { GoogleAuthGuard } from '../../common/guards/google-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -72,6 +73,25 @@ export class AuthController {
     res.cookie('access_token', accessToken, cookieOptions(ACCESS_TOKEN_TTL));
     res.cookie('refresh_token', refreshToken, cookieOptions(REFRESH_TOKEN_TTL));
     return { message: 'Login successful' };
+  }
+
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Redirect to Google OAuth consent screen' })
+  googleAuth() {
+    // Guard redirects to Google
+  }
+
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Google OAuth callback' })
+  async googleCallback(@Req() req: any, @Res() res: Response) {
+    const { accessToken, refreshToken } = await this.authService.googleLogin(req.user);
+    res.cookie('access_token', accessToken, cookieOptions(ACCESS_TOKEN_TTL));
+    res.cookie('refresh_token', refreshToken, cookieOptions(REFRESH_TOKEN_TTL));
+    // Redirect to frontend
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/auth/google/callback`);
   }
 
   @Post('refresh')

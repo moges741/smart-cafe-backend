@@ -196,10 +196,58 @@ export class AuthService {
     if (!user.isEmailVerified && user.role.name === 'customer') {
       throw new UnauthorizedException('Please verify your email address before logging in. Check your inbox.');
     }
+    
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('This account uses Google sign-in. Please use "Continue with Google".');
+    }
 
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return this.generateTokens(user.id, user.email, user.role.name);
+  }
+
+  async googleLogin(profile: { email: string, firstName: string, lastName: string, googleId: string }) {
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: profile.email },
+          { googleId: profile.googleId }
+        ]
+      },
+      include: { role: true }
+    });
+
+    if (user) {
+      // Update googleId if they had registered with email before but now use Google
+      if (!user.googleId) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { googleId: profile.googleId, isEmailVerified: true },
+          include: { role: true }
+        });
+      }
+    } else {
+      // Create new customer user
+      const customerRole = await this.prisma.role.findUnique({
+        where: { name: 'customer' },
+      });
+      
+      if (!customerRole) throw new Error('Customer role not found');
+
+      user = await this.prisma.user.create({
+        data: {
+          email: profile.email,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          googleId: profile.googleId,
+          isEmailVerified: true,
+          roleId: customerRole.id,
+        },
+        include: { role: true }
+      });
     }
 
     return this.generateTokens(user.id, user.email, user.role.name);

@@ -22,7 +22,8 @@ model User {
   firstName              String    @default("")
   lastName               String    @default("")
   email                  String    @unique
-  passwordHash           String
+  passwordHash           String?
+  googleId               String?   @unique
   isActive               Boolean   @default(true)
   isEmailVerified        Boolean   @default(false)
   verificationToken      String?   @unique
