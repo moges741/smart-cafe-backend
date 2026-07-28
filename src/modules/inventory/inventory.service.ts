@@ -727,43 +727,10 @@ export class InventoryService {
     branchId: string,
     items: Array<{ productId: string; quantity: number }>,
   ) {
-    // 1. First, automatically consume ingredients from Kitchen Inventory based on recipes
+    // Consume ingredients from Kitchen Inventory based on product recipes.
+    // Products without a recipe are skipped automatically (e.g., retail items
+    // that haven't been set up yet — add a recipe to track them).
     await this.consumeIngredientsForOrder(orderId, branchId);
-
-    // 2. Fallback: also deduct legacy product-level stock if tracked in the old Inventory table
-    for (const item of items) {
-      const inventory = await this.prisma.inventory.findUnique({
-        where: {
-          productId_branchId: {
-            productId: item.productId,
-            branchId,
-          },
-        },
-      });
-
-      if (!inventory) continue;
-
-      const newQuantity = Math.max(0, inventory.currentQuantity - item.quantity);
-
-      await this.prisma.$transaction(async (tx) => {
-        await tx.inventoryLog.create({
-          data: {
-            inventoryId: inventory.id,
-            delta: -item.quantity,
-            reason: 'order_deduction',
-            note: `Order deduction for order ID: ${orderId}`,
-            quantityBefore: inventory.currentQuantity,
-            quantityAfter: newQuantity,
-            orderId,
-          },
-        });
-
-        await tx.inventory.update({
-          where: { id: inventory.id },
-          data: { currentQuantity: newQuantity },
-        });
-      });
-    }
   }
 
   async create(dto: any, actorId: string) {
