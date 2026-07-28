@@ -21,6 +21,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UploadedImageFile } from '../../common/interfaces/uploaded-image-file.interface';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { BranchAccessGuard } from '../../common/guards/branch-access.guard';
 
 @ApiTags('Products')
 @ApiBearerAuth()
@@ -57,11 +59,11 @@ export class ProductsController {
   }
 
   @Patch(':id/toggle-availability')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, BranchAccessGuard)
   @Roles('admin', 'manager', 'cashier', 'kitchen', 'waiter')
   @ApiOperation({ summary: 'Toggle product availability on/off' })
-  toggle(@Param('id') id: string) {
-    return this.productsService.toggleAvailability(id);
+  toggle(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.productsService.toggleAvailability(id, user);
   }
 
   @Delete(':id')

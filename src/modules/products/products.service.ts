@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
@@ -118,8 +118,17 @@ export class ProductsService {
     });
   }
 
-  async toggleAvailability(id: string) {
+  async toggleAvailability(id: string, user?: any) {
     const product = await this.findOne(id);
+    
+    // Enforce branch access for staff
+    if (user && user.role?.name !== 'admin' && user.role?.name !== 'manager') {
+      const staffBranchId = user.employee?.branchId;
+      if (staffBranchId && product.branchId !== staffBranchId) {
+        throw new ForbiddenException('You can only toggle availability for products in your assigned branch.');
+      }
+    }
+
     return this.prisma.product.update({
       where: { id },
       data: { isAvailable: !product.isAvailable },
