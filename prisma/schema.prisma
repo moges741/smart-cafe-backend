@@ -63,6 +63,7 @@ model Branch {
   kitchenInventories     KitchenInventory[]
   materialRequests       MaterialRequest[]
   inventoryTransactions  InventoryTransaction[]
+  rawMaterials           RawMaterial[]
 
   @@index([isActive])
 }
@@ -325,11 +326,16 @@ model RawMaterial {
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
+  branchId         String?
+  branch           Branch?              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
   mainInventories  MainStoreInventory[]
   kitchenInventories KitchenInventory[]
   recipeIngredients RecipeIngredient[]
   requestItems     MaterialRequestItem[]
   transactions     InventoryTransaction[]
+
+  @@index([branchId])
 }
 
 model MainStoreInventory {

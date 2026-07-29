@@ -22,7 +22,7 @@ export class InventoryService {
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 1. Raw Materials Catalog
+  // 1. Raw Materials Catalog (Branch-Scoped)
   // ─────────────────────────────────────────────────────────────────────────────
 
   async createRawMaterial(dto: CreateRawMaterialDto) {
@@ -34,12 +34,22 @@ export class InventoryService {
         unit: dto.unit,
         minStockLevel: dto.minStockLevel ?? 0,
         description: dto.description,
+        branchId: dto.branchId ?? null,
       },
     });
   }
 
-  async findAllRawMaterials() {
+  async findAllRawMaterials(branchId?: string) {
+    const where: any = {};
+    if (branchId && branchId !== 'null' && branchId !== 'undefined') {
+      // Return materials that belong to this branch OR have no branch (global)
+      where.OR = [
+        { branchId },
+        { branchId: null },
+      ];
+    }
     return this.prisma.rawMaterial.findMany({
+      where,
       orderBy: { name: 'asc' },
     });
   }
@@ -63,16 +73,25 @@ export class InventoryService {
   // ─────────────────────────────────────────────────────────────────────────────
 
   async getMainStoreStock(branchId?: string) {
-    const rawMaterials = await this.prisma.rawMaterial.findMany({
-      where: { isActive: true },
-      orderBy: { name: 'asc' },
-    });
-
     let effectiveBranchId = branchId;
     if (!effectiveBranchId || effectiveBranchId === 'null' || effectiveBranchId === 'undefined') {
       const defaultBranch = await this.prisma.branch.findFirst({ where: { isActive: true } });
       effectiveBranchId = defaultBranch?.id;
     }
+
+    // Only show raw materials that belong to this branch or have no branch (global)
+    const rawMaterialWhere: any = { isActive: true };
+    if (effectiveBranchId) {
+      rawMaterialWhere.OR = [
+        { branchId: effectiveBranchId },
+        { branchId: null },
+      ];
+    }
+
+    const rawMaterials = await this.prisma.rawMaterial.findMany({
+      where: rawMaterialWhere,
+      orderBy: { name: 'asc' },
+    });
 
     const existingStock = effectiveBranchId
       ? await this.prisma.mainStoreInventory.findMany({
@@ -241,16 +260,25 @@ export class InventoryService {
   // ─────────────────────────────────────────────────────────────────────────────
 
   async getKitchenStock(branchId?: string) {
-    const rawMaterials = await this.prisma.rawMaterial.findMany({
-      where: { isActive: true },
-      orderBy: { name: 'asc' },
-    });
-
     let effectiveBranchId = branchId;
     if (!effectiveBranchId || effectiveBranchId === 'null' || effectiveBranchId === 'undefined') {
       const defaultBranch = await this.prisma.branch.findFirst({ where: { isActive: true } });
       effectiveBranchId = defaultBranch?.id;
     }
+
+    // Only show raw materials that belong to this branch or have no branch (global)
+    const rawMaterialWhere: any = { isActive: true };
+    if (effectiveBranchId) {
+      rawMaterialWhere.OR = [
+        { branchId: effectiveBranchId },
+        { branchId: null },
+      ];
+    }
+
+    const rawMaterials = await this.prisma.rawMaterial.findMany({
+      where: rawMaterialWhere,
+      orderBy: { name: 'asc' },
+    });
 
     const existingStock = effectiveBranchId
       ? await this.prisma.kitchenInventory.findMany({

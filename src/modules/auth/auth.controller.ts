@@ -1,7 +1,7 @@
 import {
   Controller, Post, Body, HttpCode,
   HttpStatus, Res, Req, UseGuards,
-  Get, Query
+  Get, Query, Delete, Patch, Param
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -60,6 +60,30 @@ export class AuthController {
   @ApiOperation({ summary: 'Admin creates a staff member with a specific role' })
   createStaff(@Body() dto: CreateStaffDto) {
     return this.authService.createStaff(dto);
+  }
+
+  @Delete('staff/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'manager')
+  @ApiOperation({ summary: 'Admin deletes a staff member' })
+  deleteStaff(@Param('id') id: string) {
+    return this.authService.deleteStaff(id);
+  }
+
+  @Patch('staff/:id/toggle')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'manager')
+  @ApiOperation({ summary: 'Admin toggles a staff member active status' })
+  toggleStaffStatus(@Param('id') id: string) {
+    return this.authService.toggleStaffStatus(id);
+  }
+
+  @Patch('staff/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'manager')
+  @ApiOperation({ summary: 'Admin updates a staff member' })
+  updateStaff(@Param('id') id: string, @Body() dto: any) {
+    return this.authService.updateStaff(id, dto);
   }
 
   @Post('login')

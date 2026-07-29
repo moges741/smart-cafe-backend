@@ -41,9 +41,9 @@ export class InventoryController {
 
   @Get('raw-materials')
   @Roles('admin', 'manager', 'cashier', 'waiter', 'barista', 'kitchen')
-  @ApiOperation({ summary: 'List all raw materials' })
-  findAllRawMaterials() {
-    return this.inventoryService.findAllRawMaterials();
+  @ApiOperation({ summary: 'List all raw materials (filtered by branch)' })
+  findAllRawMaterials(@Query('branchId') branchId?: string) {
+    return this.inventoryService.findAllRawMaterials(branchId);
   }
 
   @Patch('raw-materials/:id')
@@ -77,8 +77,8 @@ export class InventoryController {
   }
 
   @Post('take-from-store')
-  @Roles('admin', 'manager', 'kitchen')
-  @ApiOperation({ summary: 'Kitchen directly withdraws ingredients from Main Store' })
+  @Roles('admin', 'manager', 'kitchen', 'barista')
+  @ApiOperation({ summary: 'Kitchen/Barista directly withdraws ingredients from Main Store' })
   takeMaterialFromStore(
     @Query('branchId') branchId: string,
     @Body() dto: { materialId: string; quantity: number; notes?: string },
@@ -99,7 +99,7 @@ export class InventoryController {
   }
 
   @Patch('kitchen/:materialId/adjust')
-  @Roles('admin', 'manager', 'kitchen')
+  @Roles('admin', 'manager', 'kitchen', 'barista')
   @ApiOperation({ summary: 'Adjust stock in Kitchen Inventory' })
   adjustKitchen(
     @Query('branchId') branchId: string,
@@ -115,8 +115,8 @@ export class InventoryController {
   // ─────────────────────────────────────────────────────────────────────────────
 
   @Post('requests')
-  @Roles('kitchen', 'admin', 'manager')
-  @ApiOperation({ summary: 'Submit daily material request from kitchen to main store' })
+  @Roles('kitchen', 'barista', 'admin', 'manager')
+  @ApiOperation({ summary: 'Submit daily material request from kitchen/barista to main store' })
   createMaterialRequest(
     @Body() dto: CreateMaterialRequestDto,
     @CurrentUser() user: any,
@@ -125,14 +125,14 @@ export class InventoryController {
   }
 
   @Get('requests')
-  @Roles('admin', 'manager', 'kitchen')
+  @Roles('admin', 'manager', 'kitchen', 'barista')
   @ApiOperation({ summary: 'List material requests (optional branch filter)' })
   getMaterialRequests(@Query('branchId') branchId?: string) {
     return this.inventoryService.getMaterialRequests(branchId);
   }
 
   @Get('requests/:id')
-  @Roles('admin', 'manager', 'kitchen')
+  @Roles('admin', 'manager', 'kitchen', 'barista')
   @ApiOperation({ summary: 'Get single material request detail' })
   getMaterialRequestById(@Param('id') id: string) {
     return this.inventoryService.getMaterialRequestById(id);

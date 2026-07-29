@@ -186,6 +186,18 @@ export class AuthService {
     return staff;
   }
 
+  async deleteStaff(id: string) {
+    return this.usersService.deleteStaff(id);
+  }
+
+  async toggleStaffStatus(id: string) {
+    return this.usersService.toggleStaffStatus(id);
+  }
+
+  async updateStaff(id: string, dto: any) {
+    return this.usersService.updateStaff(id, dto);
+  }
+
   async login(dto: LoginDto) {
     const user = await this.usersService.findByEmail(dto.email);
 

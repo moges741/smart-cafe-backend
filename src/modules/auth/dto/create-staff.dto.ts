@@ -15,6 +15,14 @@ export class CreateStaffDto {
   @IsEmail()
   email: string;
 
+  @ApiProperty({ example: 'John' })
+  @IsString()
+  firstName: string;
+
+  @ApiProperty({ example: 'Doe' })
+  @IsString()
+  lastName: string;
+
   @ApiProperty({ example: 'SecurePass123!' })
   @IsString()
   @MinLength(8)

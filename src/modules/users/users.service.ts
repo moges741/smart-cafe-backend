@@ -47,6 +47,8 @@ export class UsersService {
       const user = await tx.user.create({
         data: {
           email: dto.email,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
           passwordHash,
           roleId: role.id,
           isEmailVerified: true, // Admin-created staff accounts are verified by default
@@ -67,6 +69,8 @@ export class UsersService {
         where: { id: user.id },
         select: {
           id: true,
+          firstName: true,
+          lastName: true,
           email: true,
           isActive: true,
           createdAt: true,
@@ -75,6 +79,109 @@ export class UsersService {
         },
       });
     });
+  }
+
+  async updateStaff(id: string, dto: any) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (dto.email && dto.email !== user.email) {
+      await this.checkEmailUnique(dto.email);
+    }
+
+    let roleId = user.roleId;
+    if (dto.role) {
+      const role = await this.prisma.role.findUnique({ where: { name: dto.role } });
+      if (!role) throw new NotFoundException(`Role "${dto.role}" not found`);
+      roleId = role.id;
+    }
+
+    const data: any = {
+      email: dto.email,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      roleId,
+    };
+
+    if (dto.password) {
+      data.passwordHash = await bcrypt.hash(dto.password, 10);
+    }
+
+    // Clean undefined fields
+    Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id },
+        data,
+      });
+
+      if (dto.branchId || dto.role) {
+        const emp = await tx.employee.findUnique({ where: { userId: id } });
+        if (emp) {
+          await tx.employee.update({
+            where: { id: emp.id },
+            data: {
+              branchId: dto.branchId !== undefined ? dto.branchId : emp.branchId,
+              role: dto.role !== undefined ? dto.role : emp.role,
+            }
+          });
+        } else if (dto.branchId) {
+           await tx.employee.create({
+              data: {
+                userId: id,
+                branchId: dto.branchId,
+                role: dto.role || 'staff',
+              }
+           });
+        }
+      }
+
+      return tx.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          isActive: true,
+          createdAt: true,
+          role: { select: { id: true, name: true } },
+          employee: { select: { branchId: true } }
+        },
+      });
+    });
+  }
+
+  async toggleStaffStatus(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { isActive: !user.isActive },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        isActive: true,
+        createdAt: true,
+        role: { select: { id: true, name: true } },
+        employee: { select: { branchId: true } }
+      },
+    });
+  }
+
+  async deleteStaff(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.employee.deleteMany({ where: { userId: id } });
+      await tx.user.delete({ where: { id } });
+    });
+    return { success: true };
   }
 
   private async checkEmailUnique(email: string) {
