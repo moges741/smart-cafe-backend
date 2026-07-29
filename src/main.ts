@@ -14,17 +14,6 @@ async function bootstrap() {
 
   // Global prefix — all routes start with /api/v1
   app.setGlobalPrefix('api/v1');
-
-  // Global validation — any DTO decorated with class-validator decorators
-  // will be automatically validated on every request
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,       // strips any properties not in the DTO
-      forbidNonWhitelisted: true, // throws error if unknown properties sent
-      transform: true,       // transforms plain JSON into typed class instances
-    }),
-  );
-
   // Swagger — auto-generated API docs at /api/docs
   const config = new DocumentBuilder()
     .setTitle('AI-Powered Smart Cafe API')
@@ -37,15 +26,29 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
   app.use(cookieParser());
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
-  app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
+  // app.enableCors({
+  //   origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
+  //   credentials: true,
+  // });
+    app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
     credentials: true,
-  });
-  const port = process.env.PORT ?? 4000;
-  await app.listen(port);
-  console.log(`Smart Cafe API running on http://localhost:${port}/api/v1`);
-  console.log(`Swagger docs at http://localhost:${port}/api/docs`);
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+    app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  )
 
+  const port = process.env.PORT || 4000
+  await app.listen(port, () => {
+    console.log(`🚀 Server running on port ${port}`)
+    console.log(`📊 Database: ${process.env.NODE_ENV} - Neon PostgreSQL`)
+  })
 }
 
 bootstrap();
