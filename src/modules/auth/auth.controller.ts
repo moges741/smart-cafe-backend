@@ -17,10 +17,12 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 const ACCESS_TOKEN_TTL  = 60 * 60 * 1000;
 const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000;
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const cookieOptions = (maxAge: number) => ({
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
+  secure: isProduction,
+  sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
   maxAge,
   path: '/',
 });
@@ -149,8 +151,9 @@ getCurrentUser(@CurrentUser() user: any) {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout — clears cookies' })
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token');
-    res.clearCookie('refresh_token');
+    const clearOpts = { httpOnly: true, secure: isProduction, sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax', path: '/' };
+    res.clearCookie('access_token', clearOpts);
+    res.clearCookie('refresh_token', clearOpts);
     return { message: 'Logged out successfully' };
   }
 }

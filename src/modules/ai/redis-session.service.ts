@@ -30,65 +30,112 @@ const SESSION_TTL_SECONDS = 30 * 60; // 1800 seconds
 @Injectable()
 export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisSessionService.name);
-  private client: Redis;
+  private client: Redis | null = null;
+  private useRedis = false;
+
+  // In-memory fallback when Redis is not available
+  private memoryStore = new Map<string, { data: string; expiresAt: number }>();
 
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
-    // Create Redis connection when module starts
-    this.client = new Redis({
-      host: this.config.get<string>('REDIS_HOST', 'localhost'),
-      port: this.config.get<number>('REDIS_PORT', 6379),
-    });
+    const redisHost = this.config.get<string>('REDIS_HOST');
+    const redisUrl = this.config.get<string>('REDIS_URL');
 
-    this.client.on('connect', () =>
-      this.logger.log('Redis session client connected')
-    );
-    this.client.on('error', (err) =>
-      this.logger.error('Redis session client error', err)
-    );
+    // Only attempt Redis connection if explicitly configured
+    if (!redisHost && !redisUrl) {
+      this.logger.warn('No REDIS_HOST or REDIS_URL configured — using in-memory session store (AI chat sessions will not persist across restarts)');
+      return;
+    }
+
+    try {
+      if (redisUrl) {
+        this.client = new Redis(redisUrl, { maxRetriesPerRequest: 3, retryStrategy: (times) => (times > 3 ? null : Math.min(times * 500, 3000)) });
+      } else {
+        this.client = new Redis({
+          host: redisHost,
+          port: this.config.get<number>('REDIS_PORT', 6379),
+          password: this.config.get<string>('REDIS_PASSWORD', undefined),
+          maxRetriesPerRequest: 3,
+          retryStrategy: (times) => (times > 3 ? null : Math.min(times * 500, 3000)),
+        });
+      }
+
+      this.client.on('connect', () => {
+        this.useRedis = true;
+        this.logger.log('Redis session client connected');
+      });
+      this.client.on('error', (err) => {
+        this.logger.error('Redis session client error — falling back to in-memory store');
+        this.useRedis = false;
+      });
+    } catch {
+      this.logger.warn('Failed to initialize Redis client — using in-memory session store');
+    }
   }
 
   onModuleDestroy() {
-    this.client.disconnect();
+    this.client?.disconnect();
   }
 
   // Build the Redis key from sessionId
-  // All session keys are prefixed so they're easy to identify in Redis
   private key(sessionId: string): string {
     return `ai_session:${sessionId}`;
   }
 
-  // Save a session — KEEPTTL means "don't change the TTL if key exists"
-  // We use SET with EX only on creation, then KEEPTTL on updates
-  // This enforces the fixed 30-minute window — updates don't extend it
   async save(session: ConversationSession): Promise<void> {
     const k = this.key(session.sessionId);
+    const json = JSON.stringify(session);
 
-    // Check if key already exists
-    const exists = await this.client.exists(k);
-
-    if (exists) {
-      // Update without changing TTL — fixed expiry stays intact
-      await this.client.set(k, JSON.stringify(session), 'KEEPTTL');
+    if (this.useRedis && this.client) {
+      const exists = await this.client.exists(k);
+      if (exists) {
+        await this.client.set(k, json, 'KEEPTTL');
+      } else {
+        await this.client.set(k, json, 'EX', SESSION_TTL_SECONDS);
+      }
     } else {
-      // First save — set with 30 minute TTL
-      await this.client.set(k, JSON.stringify(session), 'EX', SESSION_TTL_SECONDS);
+      // In-memory fallback
+      const existing = this.memoryStore.get(k);
+      const expiresAt = existing ? existing.expiresAt : Date.now() + SESSION_TTL_SECONDS * 1000;
+      this.memoryStore.set(k, { data: json, expiresAt });
     }
   }
 
   async get(sessionId: string): Promise<ConversationSession | null> {
-    const raw = await this.client.get(this.key(sessionId));
-    if (!raw) return null;
-    return JSON.parse(raw) as ConversationSession;
+    const k = this.key(sessionId);
+
+    if (this.useRedis && this.client) {
+      const raw = await this.client.get(k);
+      if (!raw) return null;
+      return JSON.parse(raw) as ConversationSession;
+    } else {
+      const entry = this.memoryStore.get(k);
+      if (!entry || Date.now() > entry.expiresAt) {
+        this.memoryStore.delete(k);
+        return null;
+      }
+      return JSON.parse(entry.data) as ConversationSession;
+    }
   }
 
   async delete(sessionId: string): Promise<void> {
-    await this.client.del(this.key(sessionId));
+    const k = this.key(sessionId);
+    if (this.useRedis && this.client) {
+      await this.client.del(k);
+    } else {
+      this.memoryStore.delete(k);
+    }
   }
 
-  // How many seconds remain before session expires
   async getTtl(sessionId: string): Promise<number> {
-    return this.client.ttl(this.key(sessionId));
+    const k = this.key(sessionId);
+    if (this.useRedis && this.client) {
+      return this.client.ttl(k);
+    } else {
+      const entry = this.memoryStore.get(k);
+      if (!entry) return -2;
+      return Math.max(0, Math.floor((entry.expiresAt - Date.now()) / 1000));
+    }
   }
 }
