@@ -30,6 +30,7 @@ async function bootstrap() {
       'http://localhost:5173',
       'http://localhost:5174',
       'http://localhost:5175',
+      'https://come-mrcafe.vercel.app',
       ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
     ];
     app.enableCors({
