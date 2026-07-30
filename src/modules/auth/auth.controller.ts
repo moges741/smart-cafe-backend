@@ -116,7 +116,7 @@ export class AuthController {
     res.cookie('access_token', accessToken, cookieOptions(ACCESS_TOKEN_TTL));
     res.cookie('refresh_token', refreshToken, cookieOptions(REFRESH_TOKEN_TTL));
     // Redirect to frontend
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://come-mrcafe.vercel.app';
     res.redirect(`${frontendUrl}/auth/google/callback`);
   }
 
