@@ -7,6 +7,25 @@ import cookieParser = require('cookie-parser');
 import { join } from 'node:path';
 import * as express from 'express';
 
+function buildAllowedOrigins(): string[] {
+  const devOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+  ]
+
+  const configuredOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.FRONTEND_URL_2,
+    process.env.ALLOWED_ORIGINS,
+  ]
+    .flatMap((value) => (value ? value.split(',') : []))
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+
+  return [...new Set([...devOrigins, ...configuredOrigins])]
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true, // needed for webhook signature verification
@@ -26,13 +45,7 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
   app.use(cookieParser());
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://localhost:5175',
-      'https://come-mrcafe.vercel.app',
-      ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
-    ];
+    const allowedOrigins = buildAllowedOrigins();
     app.enableCors({
       origin: allowedOrigins,
       credentials: true,

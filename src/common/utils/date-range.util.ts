@@ -1,10 +1,3 @@
-// What this does:
-// Takes a human-readable period like "today" and returns
-// { from: Date, to: Date } that Prisma can use in WHERE clauses
-//
-// Why a utility function and not inline logic?
-// Because four different analytics queries all need the same
-// date range. One function, used everywhere, changed in one place.
 
 export type Period = 'today' | 'this_week' | 'this_month';
 

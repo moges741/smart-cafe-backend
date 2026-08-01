@@ -13,10 +13,29 @@ import { Server, Socket } from 'socket.io';
 import { EventsService } from './events.service';
 import { Rooms } from '../../common/events/socket-events';
 
+function buildAllowedOrigins(): string[] {
+  const devOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+  ]
+
+  const configuredOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.FRONTEND_URL_2,
+    process.env.ALLOWED_ORIGINS,
+  ]
+    .flatMap((value) => (value ? value.split(',') : []))
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+
+  return [...new Set([...devOrigins, ...configuredOrigins])]
+}
+
 @WebSocketGateway({
   namespace: "/events",
   cors: {
-    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
+    origin: buildAllowedOrigins(),
     credentials: true,
   },
 })
