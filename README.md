@@ -49,6 +49,10 @@ Use the following image endpoints from the frontend or admin UI:
 
 The product detail response now includes an ordered `images` array, while `imageUrl` remains the primary image for cards and listings.
 
+## AI session storage
+
+The AI ordering flow stores conversation state in Redis. For deployment, set `REDIS_URL` to the Upstash connection string (for example `rediss://...`). If `REDIS_URL` is missing, the app falls back to in-memory sessions, which means AI chats will not survive a restart.
+
 ## Compile and run the project
 
 ```bash

@@ -32,13 +32,14 @@ export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisSessionService.name);
   private client: Redis | null = null;
   private useRedis = false;
+  private connectPromise: Promise<boolean> | null = null;
 
   // In-memory fallback when Redis is not available
   private memoryStore = new Map<string, { data: string; expiresAt: number }>();
 
   constructor(private readonly config: ConfigService) {}
 
-  onModuleInit() {
+  async onModuleInit() {
     const redisHost = this.config.get<string>('REDIS_HOST');
     const redisUrl = this.config.get<string>('REDIS_URL');
 
@@ -52,7 +53,9 @@ export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
       if (redisUrl) {
         const isTls = redisUrl.startsWith('rediss://');
         this.client = new Redis(redisUrl, {
+          lazyConnect: true,
           maxRetriesPerRequest: 3,
+          connectTimeout: 10000,
           retryStrategy: (times) => (times > 3 ? null : Math.min(times * 500, 3000)),
           tls: isTls ? { rejectUnauthorized: false } : undefined,
         });
@@ -61,7 +64,9 @@ export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
           host: redisHost,
           port: this.config.get<number>('REDIS_PORT', 6379),
           password: this.config.get<string>('REDIS_PASSWORD', undefined),
+          lazyConnect: true,
           maxRetriesPerRequest: 3,
+          connectTimeout: 10000,
           retryStrategy: (times) => (times > 3 ? null : Math.min(times * 500, 3000)),
         });
       }
@@ -74,6 +79,8 @@ export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
         this.logger.error('Redis session client error — falling back to in-memory store');
         this.useRedis = false;
       });
+
+      await this.ensureConnected();
     } catch {
       this.logger.warn('Failed to initialize Redis client — using in-memory session store');
     }
@@ -88,11 +95,43 @@ export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
     return `ai_session:${sessionId}`;
   }
 
+  private async ensureConnected(): Promise<boolean> {
+    if (this.useRedis && this.client?.status === 'ready') {
+      return true;
+    }
+
+    if (!this.client) {
+      return false;
+    }
+
+    if (!this.connectPromise) {
+      this.connectPromise = (async () => {
+        try {
+          if (this.client?.status !== 'ready') {
+            await this.client.connect();
+          }
+          await this.client?.ping();
+          this.useRedis = true;
+          this.logger.log('Redis session client ready');
+          return true;
+        } catch (error) {
+          this.useRedis = false;
+          this.logger.warn('Redis session client unavailable — using in-memory session store');
+          return false;
+        } finally {
+          this.connectPromise = null;
+        }
+      })();
+    }
+
+    return this.connectPromise;
+  }
+
   async save(session: ConversationSession): Promise<void> {
     const k = this.key(session.sessionId);
     const json = JSON.stringify(session);
 
-    if (this.useRedis && this.client) {
+    if (await this.ensureConnected()) {
       const exists = await this.client.exists(k);
       if (exists) {
         await this.client.set(k, json, 'KEEPTTL');
@@ -110,7 +149,7 @@ export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
   async get(sessionId: string): Promise<ConversationSession | null> {
     const k = this.key(sessionId);
 
-    if (this.useRedis && this.client) {
+    if (await this.ensureConnected()) {
       const raw = await this.client.get(k);
       if (!raw) return null;
       return JSON.parse(raw) as ConversationSession;
@@ -126,7 +165,7 @@ export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
 
   async delete(sessionId: string): Promise<void> {
     const k = this.key(sessionId);
-    if (this.useRedis && this.client) {
+    if (await this.ensureConnected()) {
       await this.client.del(k);
     } else {
       this.memoryStore.delete(k);
@@ -135,7 +174,7 @@ export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
 
   async getTtl(sessionId: string): Promise<number> {
     const k = this.key(sessionId);
-    if (this.useRedis && this.client) {
+    if (await this.ensureConnected()) {
       return this.client.ttl(k);
     } else {
       const entry = this.memoryStore.get(k);
