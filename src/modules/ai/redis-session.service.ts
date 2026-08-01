@@ -50,7 +50,12 @@ export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
 
     try {
       if (redisUrl) {
-        this.client = new Redis(redisUrl, { maxRetriesPerRequest: 3, retryStrategy: (times) => (times > 3 ? null : Math.min(times * 500, 3000)) });
+        const isTls = redisUrl.startsWith('rediss://');
+        this.client = new Redis(redisUrl, {
+          maxRetriesPerRequest: 3,
+          retryStrategy: (times) => (times > 3 ? null : Math.min(times * 500, 3000)),
+          tls: isTls ? { rejectUnauthorized: false } : undefined,
+        });
       } else {
         this.client = new Redis({
           host: redisHost,
