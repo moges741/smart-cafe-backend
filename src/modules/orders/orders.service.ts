@@ -109,6 +109,20 @@ export class OrdersService {
     });
   }
 
+  findByCustomer(customerId: string) {
+    return this.prisma.order.findMany({
+      where: { customerId },
+      include: {
+        items: {
+          include: { product: { select: { id: true, name: true, price: true, categoryId: true } } }
+        },
+        customer: { select: { id: true, email: true } },
+        payment: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async findOne(id: string) {
     const order = await this.prisma.order.findUnique({
       where: { id },

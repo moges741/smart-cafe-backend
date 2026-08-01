@@ -39,6 +39,13 @@ export class OrdersController {
     return this.ordersService.findAll(branchId, status, days);
   }
 
+  @Get('me')
+  @Roles('customer')
+  @ApiOperation({ summary: 'Get the current customer order history' })
+  findMine(@CurrentUser() user: any) {
+    return this.ordersService.findByCustomer(user.id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get one order by ID' })
   findOne(@Param('id') id: string) {
