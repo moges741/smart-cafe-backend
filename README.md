@@ -53,6 +53,15 @@ The product detail response now includes an ordered `images` array, while `image
 
 The AI ordering flow stores conversation state in Redis. For deployment, set `REDIS_URL` to the Upstash connection string (for example `rediss://...`). If `REDIS_URL` is missing, the app falls back to in-memory sessions, which means AI chats will not survive a restart.
 
+## AI model setup
+
+The text and voice ordering features also require Groq credentials:
+
+- `GROQ_API_KEY`
+- `GROQ_MODEL` is optional and defaults to `llama-3.1-8b-instant`
+
+If `GROQ_API_KEY` is missing, AI chat and voice transcription will fail immediately at startup instead of returning misleading fallback replies.
+
 ## Compile and run the project
 
 ```bash

@@ -67,8 +67,13 @@ ${params.customerName ? `10. The customer's name is ${params.customerName} — u
 
 RESPOND WITH EXACTLY THIS JSON STRUCTURE — NO OTHER FORMAT:
 {
+    const apiKey = this.config.get<string>('GROQ_API_KEY');
+    if (!apiKey) {
+      throw new Error('GROQ_API_KEY is not configured');
+    }
+
   "intent": "place_order | ask_menu | ask_price | confirm_order | cancel | unclear",
-  "confidence": 0.95,
+      apiKey,
   "language": "en",
   "responseText": "Your friendly response to the customer here",
   "extractedItems": [
@@ -102,26 +107,30 @@ RESPOND WITH EXACTLY THIS JSON STRUCTURE — NO OTHER FORMAT:
         temperature: 0.3,   // low temperature = more consistent, less creative
                             // for ordering we want predictable structured output
         max_tokens:  1024,
+        response_format: { type: 'json_object' } as any,
       });
 
       const raw = completion.choices[0]?.message?.content ?? '';
       this.logger.debug(`Groq raw response: ${raw}`);
 
-      // Parse the JSON response
-      // Strip any accidental markdown code fences if present
       const cleaned = raw
         .replace(/```json\n?/g, '')
         .replace(/```\n?/g, '')
         .trim();
 
-      const parsed = JSON.parse(cleaned) as AiResponse;
-
-      // Validate the required fields exist
-      if (!parsed.intent || typeof parsed.confidence !== 'number') {
-        throw new Error('Invalid AI response structure');
+      const parsed = this.parseAiResponse(cleaned);
+      if (parsed) {
+        return parsed;
       }
 
-      return parsed;
+      this.logger.warn('Groq returned a non-JSON response; falling back to readable text output');
+      return {
+        intent: this.normalizeIntent(undefined, cleaned),
+        confidence: 0.35,
+        language: 'en',
+        responseText: cleaned || "I'm sorry, I couldn't generate a response right now.",
+        extractedItems: [],
+      };
 
     } catch (error: any) {
       this.logger.error('Groq API error:', error.message);
@@ -135,5 +144,63 @@ RESPOND WITH EXACTLY THIS JSON STRUCTURE — NO OTHER FORMAT:
         extractedItems: [],
       };
     }
+  }
+
+  private parseAiResponse(raw: string): AiResponse | null {
+    const candidates = [raw, this.extractJsonObject(raw)].filter(Boolean) as string[];
+
+    for (const candidate of candidates) {
+      try {
+        const parsed = JSON.parse(candidate) as Partial<AiResponse>;
+        if (!parsed || typeof parsed !== 'object') continue;
+
+        const responseText = typeof parsed.responseText === 'string'
+          ? parsed.responseText.trim()
+          : '';
+        const extractedItems = Array.isArray(parsed.extractedItems)
+          ? parsed.extractedItems
+              .filter((item): item is AiResponse['extractedItems'][number] => Boolean(item && typeof item === 'object'))
+              .map((item) => ({
+                productName: String(item.productName ?? ''),
+                productId: String(item.productId ?? ''),
+                quantity: Number(item.quantity ?? 0),
+                notes: item.notes == null ? null : String(item.notes),
+              }))
+          : [];
+
+        return {
+          intent: this.normalizeIntent(parsed.intent, responseText),
+          confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.35,
+          language: typeof parsed.language === 'string' ? parsed.language : 'en',
+          responseText: responseText || raw,
+          extractedItems,
+        };
+      } catch {
+        // Try the next candidate.
+      }
+    }
+
+    return null;
+  }
+
+  private extractJsonObject(raw: string): string | null {
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start === -1 || end === -1 || end <= start) return null;
+    return raw.slice(start, end + 1);
+  }
+
+  private normalizeIntent(intent: unknown, responseText: string): AiResponse['intent'] {
+    if (intent === 'place_order' || intent === 'ask_menu' || intent === 'ask_price' || intent === 'confirm_order' || intent === 'cancel' || intent === 'unclear') {
+      return intent;
+    }
+
+    const text = `${responseText} ${String(intent ?? '')}`.toLowerCase();
+    if (/(menu|what do you have|available)/.test(text)) return 'ask_menu';
+    if (/(price|cost|how much)/.test(text)) return 'ask_price';
+    if (/(yes|confirm|place|order now|proceed)/.test(text)) return 'confirm_order';
+    if (/(cancel|stop|never mind|nevermind)/.test(text)) return 'cancel';
+    if (/(want|would like|add|order)/.test(text)) return 'place_order';
+    return 'unclear';
   }
 }

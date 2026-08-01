@@ -9,8 +9,13 @@ export class WhisperService {
   private readonly groq: Groq;
 
   constructor(private readonly config: ConfigService) {
+    const apiKey = this.config.get<string>('GROQ_API_KEY');
+    if (!apiKey) {
+      throw new Error('GROQ_API_KEY is not configured');
+    }
+
     this.groq = new Groq({
-      apiKey: this.config.get<string>('GROQ_API_KEY'),
+      apiKey,
     });
   }
 
