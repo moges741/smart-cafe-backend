@@ -16,6 +16,9 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { AiModule } from './modules/ai/ai.module';
 import { CartModule } from './modules/cart/cart.module';
 
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -35,5 +38,7 @@ import { CartModule } from './modules/cart/cart.module';
     InventoryModule,
     CartModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
