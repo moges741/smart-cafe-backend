@@ -28,7 +28,7 @@ export class EmailService {
   ) {
     this.fromEmail =
       this.configService.get<string>('RESEND_FROM_EMAIL') ||
-      'noreply@mail.dev-moges.me';
+      'onboarding@resend.dev';
     this.frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
 
@@ -36,7 +36,7 @@ export class EmailService {
       this.logger.warn('RESEND_API_KEY is not defined. Emails will be mocked.');
     } else if (!this.configService.get<string>('RESEND_FROM_EMAIL')) {
       this.logger.warn(
-        'RESEND_FROM_EMAIL is not set. Using default noreply@mail.dev-moges.me',
+        'RESEND_FROM_EMAIL is not set. Using default onboarding@resend.dev',
       );
     }
   }
