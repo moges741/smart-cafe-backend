@@ -20,5 +20,6 @@ import { ResendClient } from './resend.client';
   ],
   providers: [AuthService, JwtStrategy, GoogleStrategy, ResendClient, EmailService],
   controllers: [AuthController],
+  exports: [AuthService, EmailService, ResendClient],
 })
 export class AuthModule {}

@@ -447,4 +447,69 @@ export class EmailService {
 
     this.logger.error(`Resend failed for ${to}`, error);
   }
+
+  async sendContactEmail(name: string, email: string, subject: string, message: string) {
+    const adminEmail = this.configService.get<string>('ADMIN_EMAIL') || 'mogesse741@gmail.com';
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          @media only screen and (max-width: 600px) {
+            .email-wrapper { padding: 15px !important; }
+            .title { font-size: 20px !important; }
+          }
+        </style>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8f9fa; color: #333;">
+        <div class="email-wrapper" style="background-color: #f8f9fa; padding: 30px 10px; width: 100%; box-sizing: border-box;">
+          <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            <div class="header" style="background-color: #c29570; padding: 25px 30px; color: #ffffff; text-align: center;">
+              <h1 style="margin: 0; font-size: 22px; font-weight: 600;">📩 New Contact Form Submission</h1>
+            </div>
+            <div class="content-area" style="padding: 30px;">
+              <p style="font-size: 16px; color: #333; margin-top: 0;">You have received a new message from your website's contact form.</p>
+              
+              <div style="background: #faf6f0; border-left: 4px solid #c29570; padding: 18px; margin: 25px 0; border-radius: 4px;">
+                <h3 style="margin: 0 0 12px 0; color: #8a5a36; font-size: 16px;">Contact Details</h3>
+                <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 6px 0; color: #666; width: 80px;">Name:</td>
+                    <td style="padding: 6px 0; font-weight: bold; color: #333;">${name}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #666;">Email:</td>
+                    <td style="padding: 6px 0; font-weight: bold; color: #333;"><a href="mailto:${email}" style="color: #c29570; text-decoration: none;">${email}</a></td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #666;">Subject:</td>
+                    <td style="padding: 6px 0; font-weight: bold; color: #333;">${subject}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <h3 style="margin: 0 0 10px 0; color: #333; font-size: 16px;">Message</h3>
+              <div style="background-color: #f1f3f5; padding: 20px; border-radius: 6px; font-size: 14px; line-height: 1.6; color: #444; white-space: pre-wrap;">${message}</div>
+              
+              <div style="margin-top: 30px; text-align: center;">
+                <a href="mailto:${email}?subject=Re: ${subject}" style="display: inline-block; padding: 12px 28px; background-color: #c29570; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px;">Reply to ${name}</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({
+      to: adminEmail,
+      subject: \`New Contact Message from \${name}: \${subject}\`,
+      html,
+      logLabel: \`Contact form email sent to \${adminEmail} from \${email}\`,
+      mockLog: \`Mock Email -> Contact message from \${name} (\${email}) to \${adminEmail}\`,
+    });
+  }
 }
