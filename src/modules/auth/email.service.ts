@@ -506,10 +506,10 @@ export class EmailService {
 
     await this.sendEmail({
       to: adminEmail,
-      subject: \`New Contact Message from \${name}: \${subject}\`,
+      subject: `New Contact Message from ${name}: ${subject}`,
       html,
-      logLabel: \`Contact form email sent to \${adminEmail} from \${email}\`,
-      mockLog: \`Mock Email -> Contact message from \${name} (\${email}) to \${adminEmail}\`,
+      logLabel: `Contact form email sent to ${adminEmail} from ${email}`,
+      mockLog: `Mock Email -> Contact message from ${name} (${email}) to ${adminEmail}`,
     });
   }
 }
