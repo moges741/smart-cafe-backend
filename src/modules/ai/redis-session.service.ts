@@ -51,7 +51,7 @@ export class RedisSessionService implements OnModuleInit, OnModuleDestroy {
 
     try {
       if (redisUrl) {
-        const isTls = redisUrl.startsWith('rediss://');
+        const isTls = redisUrl.startsWith('rediss://') || redisUrl.includes('.upstash.io');
         this.client = new Redis(redisUrl, {
           lazyConnect: true,
           maxRetriesPerRequest: 3,
