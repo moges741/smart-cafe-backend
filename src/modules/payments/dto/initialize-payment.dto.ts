@@ -21,4 +21,13 @@ export class InitializePaymentDto {
     message: 'Phone number must be in Ethiopian format: 09xxxxxxxx or 07xxxxxxxx',
   })
   phoneNumber?: string;
+
+  @ApiPropertyOptional({
+    enum: ['cash', 'chapa'],
+    example: 'chapa',
+    description: 'Payment method selected by the user',
+  })
+  @IsOptional()
+  @IsString()
+  method?: 'cash' | 'chapa';
 }

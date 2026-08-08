@@ -56,18 +56,44 @@ export class PaymentsService {
       throw new ConflictException('This order has already been paid');
     }
 
-    // 5. Generate unique transaction reference
+    // 5. If cash, we just upsert the payment and return success. No Chapa needed.
+    if (dto.method === 'cash') {
+      await this.prisma.payment.upsert({
+        where:  { orderId: order.id },
+        update: {
+          status: 'pending',
+          method: 'cash',
+        },
+        create: {
+          orderId:    order.id,
+          amount:     order.totalAmount,
+          method:     'cash',
+          status:     'pending',
+        },
+      });
+
+      return {
+        success: true,
+        method: 'cash',
+        amount: order.totalAmount,
+        currency: 'ETB',
+        orderNumber: order.orderNumber,
+        instruction: 'Pay at the counter',
+      };
+    }
+
+    // 6. Generate unique transaction reference for Chapa
     // Format: CAFE-ORD-0001-ABCD1234
     // We include the order number so it's human-readable in the Chapa dashboard
     const txRef = `CAFE-${order.orderNumber}-${uuidv4().slice(0, 8).toUpperCase()}`;
 
-    // 6. Build URLs
+    // 7. Build URLs
     const appUrl      = this.config.get<string>('APP_URL')!;
     const callbackUrl = `${appUrl}/api/v1/payments/webhook`;
     const baseReturnUrl = this.config.get<string>('FRONTEND_RETURN_URL')!;
     const returnUrl   = `${baseReturnUrl}?orderId=${order.id}`;
 
-    // 7. Call Chapa to initialize the transaction
+    // 8. Call Chapa to initialize the transaction
     const chapaResponse = await this.chapa.initializeTransaction({
       amount:      Number(order.totalAmount),
       email:       order.customer.email,
@@ -84,7 +110,7 @@ export class PaymentsService {
 
     const checkoutUrl = chapaResponse.data?.checkout_url;
 
-    // 8. Save the pending payment record in our database
+    // 9. Save the pending payment record in our database
     // upsert = update if exists, create if not
     // This handles the case where they initialize payment more than once
     await this.prisma.payment.upsert({
@@ -106,8 +132,10 @@ export class PaymentsService {
       },
     });
 
-    // 9. Return what the frontend needs
+    // 10. Return what the frontend needs
     return {
+      success: true,
+      method: 'chapa',
       checkoutUrl,   // frontend redirects customer here
       txRef,
       amount:        order.totalAmount,
@@ -116,6 +144,7 @@ export class PaymentsService {
       instruction:   'Open checkoutUrl in the browser to complete payment',
     };
   }
+
 
   // ─── CASH PAYMENT — cashier confirms manually ────────────────────────────────
   // No Chapa involved — cashier physically collects cash and marks it done
