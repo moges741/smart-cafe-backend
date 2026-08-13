@@ -58,7 +58,7 @@ export class PaymentsService {
 
     // 5. If cash, we just upsert the payment and return success. No Chapa needed.
     if (dto.method === 'cash') {
-      await this.prisma.payment.upsert({
+      const payment = await this.prisma.payment.upsert({
         where:  { orderId: order.id },
         update: {
           status: 'pending',
@@ -70,6 +70,15 @@ export class PaymentsService {
           method:     'cash',
           status:     'pending',
         },
+      });
+
+      // Emit socket event so Cashier and Waiter dashboards get the payment method update instantly
+      this.events.emitOrderStatusUpdate({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        branchId: order.branchId,
+        payment,
       });
 
       return {
@@ -113,7 +122,7 @@ export class PaymentsService {
     // 9. Save the pending payment record in our database
     // upsert = update if exists, create if not
     // This handles the case where they initialize payment more than once
-    await this.prisma.payment.upsert({
+    const payment = await this.prisma.payment.upsert({
       where:  { orderId: order.id },
       update: {
         // If re-initializing, update with fresh txRef and checkout URL
@@ -130,6 +139,15 @@ export class PaymentsService {
         txRef,
         checkoutUrl,
       },
+    });
+
+    // Emit socket event so Waiter dashboard hides this pending Chapa order immediately
+    this.events.emitOrderStatusUpdate({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      branchId: order.branchId,
+      payment,
     });
 
     // 10. Return what the frontend needs
@@ -347,5 +365,84 @@ await this.inventory.deductForOrder(
 
     if (!payment) throw new NotFoundException('No payment found for this order');
     return payment;
+  }
+
+  // ─── VERIFY payment on return from Chapa ────────────────────────────────────
+  // Called by the frontend when the customer returns from Chapa's checkout page.
+  // The webhook is the primary confirmation path, but it can be delayed or lost.
+  // This is the fallback — it calls Chapa's verify API directly.
+  async verifyPaymentByOrder(orderId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where:   { orderId },
+      include: { order: { include: { items: true } } },
+    });
+
+    if (!payment) throw new NotFoundException('No payment found for this order');
+
+    // Already completed (webhook beat us) — just return
+    if (payment.status === 'completed') {
+      return { status: 'completed', orderNumber: payment.order.orderNumber };
+    }
+
+    // Not a chapa payment or no txRef — nothing to verify
+    if (payment.method !== 'chapa' || !payment.txRef) {
+      return { status: payment.status, orderNumber: payment.order.orderNumber };
+    }
+
+    // Call Chapa verify API
+    let verification: any;
+    try {
+      verification = await this.chapa.verifyTransaction(payment.txRef);
+    } catch {
+      // Chapa API might fail — that's OK, webhook will handle it later
+      this.logger.warn(`Verify API failed for txRef: ${payment.txRef}`);
+      return { status: payment.status, orderNumber: payment.order.orderNumber };
+    }
+
+    if (verification.data?.status !== 'success') {
+      return { status: payment.status, orderNumber: payment.order.orderNumber };
+    }
+
+    // Amount check
+    const expectedAmount = Number(payment.amount);
+    const paidAmount = Number(verification.data?.amount);
+    if (Math.abs(expectedAmount - paidAmount) > 0.01) {
+      this.logger.error(`Amount mismatch on verify for order ${orderId}`);
+      return { status: payment.status, orderNumber: payment.order.orderNumber };
+    }
+
+    // Payment verified — update DB exactly like the webhook does
+    const updatedOrder = await this.prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status:            'completed',
+          chapaRef:          verification.data?.reference,
+          chapaPaymentMethod: verification.data?.payment_method,
+        },
+      });
+
+      await this.inventory.deductForOrder(
+        payment.orderId,
+        payment.order.branchId,
+        payment.order.items.map((i: any) => ({
+          productId: i.productId,
+          quantity:  i.quantity,
+        })),
+      );
+
+      const order = await tx.order.findUnique({
+        where:   { id: payment.orderId },
+        include: { items: true, payment: true },
+      });
+      return order!;
+    });
+
+    // Emit socket event so waiter page updates in real-time
+    this.events.emitOrderStatusUpdate(updatedOrder);
+
+    this.logger.log(`Payment verified on return — order: ${updatedOrder.orderNumber}`);
+
+    return { status: 'completed', orderNumber: updatedOrder.orderNumber };
   }
 }

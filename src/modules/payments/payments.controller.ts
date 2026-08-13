@@ -83,4 +83,18 @@ export class PaymentsController {
   getPaymentByOrder(@Param('orderId') orderId: string) {
     return this.paymentsService.getPaymentByOrder(orderId);
   }
+
+  // Frontend calls this when customer returns from Chapa.
+  // It verifies the payment with Chapa's API and updates the DB if paid.
+  // This is the fallback for when the webhook is slow or doesn't fire.
+  @Post('verify/:orderId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Verify Chapa payment on return — fallback for webhook',
+    description: 'Call this when the customer returns from Chapa checkout.',
+  })
+  verifyPayment(@Param('orderId') orderId: string) {
+    return this.paymentsService.verifyPaymentByOrder(orderId);
+  }
 }
