@@ -33,6 +33,12 @@ export class EventsService {
         orderNumber: order.orderNumber,
         status:      order.status,
         branchId:    order.branchId,
+        // Include payment so frontend can update paid/unpaid state in real-time
+        payment:     order.payment ? {
+          id:     order.payment.id,
+          status: order.payment.status,
+          method: order.payment.method,
+        } : null,
       },
       timestamp: new Date().toISOString(),
     };
