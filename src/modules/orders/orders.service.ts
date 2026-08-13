@@ -147,10 +147,21 @@ export class OrdersService {
       );
     }
 
+    // 🔒 PAYMENT ENFORCEMENT: block kitchen dispatch for unpaid orders
+    // pending → confirmed means "waiter pushes to kitchen"
+    // Only allow this if the order is actually paid
+    if (dto.status === 'confirmed' && order.payment?.status !== 'completed') {
+      throw new BadRequestException(
+        'Cannot send order to kitchen — payment has not been confirmed yet'
+      );
+    }
+
     const updated = await this.prisma.order.update({
       where: { id },
       data: { status: dto.status as any },
-      include: { items: true },
+      // Include payment so the socket event carries the full payment state
+      // without this, the frontend overwrites payment to null
+      include: { items: true, payment: true },
     });
 
     // 🔴 Fire real-time event — kitchen + customer tracking both update instantly
