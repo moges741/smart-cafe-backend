@@ -1,7 +1,8 @@
 import {
   Controller, Post, Body, HttpCode,
   HttpStatus, Res, Req, UseGuards,
-  Get, Query, Delete, Patch, Param
+  Get, Query, Delete, Patch, Param,
+  UnauthorizedException
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -90,15 +91,20 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login — sets HttpOnly cookie tokens' })
+  @ApiOperation({ summary: 'Login — sets HttpOnly cookie tokens and returns auth payload' })
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { accessToken, refreshToken } = await this.authService.login(dto);
-    res.cookie('access_token', accessToken, cookieOptions(ACCESS_TOKEN_TTL));
-    res.cookie('refresh_token', refreshToken, cookieOptions(REFRESH_TOKEN_TTL));
-    return { message: 'Login successful' };
+    const result = await this.authService.login(dto);
+    res.cookie('access_token', result.accessToken, cookieOptions(ACCESS_TOKEN_TTL));
+    res.cookie('refresh_token', result.refreshToken, cookieOptions(REFRESH_TOKEN_TTL));
+    return { 
+      message: 'Login successful',
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    };
   }
 
   @Get('google')
@@ -115,25 +121,33 @@ export class AuthController {
     const { accessToken, refreshToken } = await this.authService.googleLogin(req.user);
     res.cookie('access_token', accessToken, cookieOptions(ACCESS_TOKEN_TTL));
     res.cookie('refresh_token', refreshToken, cookieOptions(REFRESH_TOKEN_TTL));
-    // Redirect to frontend
-    const frontendUrl = process.env.FRONTEND_URL || 'https://come-mrcafe.vercel.app';
-    res.redirect(`${frontendUrl}/auth/google/callback`);
+    // Redirect to frontend (with token params for cross-origin mobile browser support)
+    const rawFrontend = process.env.FRONTEND_URL?.trim();
+    const frontendUrl = rawFrontend && !rawFrontend.includes('localhost')
+      ? rawFrontend
+      : (process.env.NODE_ENV === 'production' ? 'https://come-mrcafe.vercel.app' : (rawFrontend || 'http://localhost:5173'));
+    res.redirect(`${frontendUrl}/auth/google/callback?token=${accessToken}&refreshToken=${refreshToken}`);
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get new access token using refresh token cookie' })
+  @ApiOperation({ summary: 'Get new access token using refresh token cookie or body/header' })
   async refresh(
     @Req() req: Request,
+    @Body() body: any,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const token = req.cookies?.refresh_token;
-    if (!token) throw new Error('No refresh token');
+    const token = req.cookies?.refresh_token || body?.refreshToken || (req.headers['x-refresh-token'] as string);
+    if (!token) throw new UnauthorizedException('No refresh token provided');
 
     const { accessToken, refreshToken } = await this.authService.refreshTokens(token);
     res.cookie('access_token', accessToken, cookieOptions(ACCESS_TOKEN_TTL));
     res.cookie('refresh_token', refreshToken, cookieOptions(REFRESH_TOKEN_TTL));
-    return { message: 'Tokens refreshed' };
+    return { 
+      message: 'Tokens refreshed',
+      accessToken,
+      refreshToken,
+    };
   }
   @Get('staff')
   @Roles('admin', 'manager')

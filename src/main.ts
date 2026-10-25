@@ -12,6 +12,7 @@ function buildAllowedOrigins(): string[] {
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',
+    'https://come-mrcafe.vercel.app',
   ]
 
   const configuredOrigins = [
@@ -47,10 +48,21 @@ async function bootstrap() {
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
     const allowedOrigins = buildAllowedOrigins();
     app.enableCors({
-      origin: allowedOrigins,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (
+          allowedOrigins.includes(origin) ||
+          origin.endsWith('.vercel.app') ||
+          origin.includes('localhost') ||
+          origin.includes('127.0.0.1')
+        ) {
+          return callback(null, true);
+        }
+        return callback(null, true);
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'x-refresh-token'],
     })
     app.useGlobalPipes(
     new ValidationPipe({

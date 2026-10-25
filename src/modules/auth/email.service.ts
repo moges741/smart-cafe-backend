@@ -29,8 +29,11 @@ export class EmailService {
     this.fromEmail =
       this.configService.get<string>('RESEND_FROM_EMAIL') ||
       'onboarding@resend.dev';
+    const rawFrontend = this.configService.get<string>('FRONTEND_URL')?.trim();
     this.frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      rawFrontend && !rawFrontend.includes('localhost')
+        ? rawFrontend
+        : (process.env.NODE_ENV === 'production' ? 'https://come-mrcafe.vercel.app' : (rawFrontend || 'http://localhost:5173'));
 
     if (!this.resendClient.isEnabled()) {
       this.logger.warn('RESEND_API_KEY is not defined. Emails will be mocked.');
