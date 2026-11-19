@@ -1,120 +1,235 @@
+# ☕ Smart Cafe & Restaurant Management Engine
+
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+  <img src="https://img.shields.io/badge/NestJS-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" alt="NestJS" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white" alt="Prisma" />
+  <img src="https://img.shields.io/badge/PostgreSQL-Neon-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Redis-Upstash-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
+  <img src="https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socketdotio&logoColor=white" alt="Socket.io" />
+  <img src="https://img.shields.io/badge/Chapa_Payment-27AE60?style=for-the-badge&logo=cashapp&logoColor=white" alt="Chapa" />
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+---
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+## 🌟 Executive Summary & Value Proposition
+
+**Smart Cafe Engine** is an enterprise-ready, multi-branch hospitality backend engineered to unify every touchpoint of modern restaurant & cafe operations into one high-throughput, real-time platform:
+
+* **🚀 100% Real-Time Synchronized Kitchen, Barista & POS Orchestration**: Instant bi-directional dispatch powered by Socket.IO rooms with zero polling delays.
+* **🤖 Voice & AI-Powered Conversational Ordering**: Powered by LLaMA 3.1 & Redis session persistence for seamless conversational food recommendations and natural language orders.
+* **🛡️ Dual-Mode Robust Security Architecture**: Seamless JWT authentication supporting both cross-domain `HttpOnly` cookie tokens and `Bearer` headers for native mobile, desktop, and privacy browsers (Brave Shields, Safari ITP).
+* **🏢 True Multi-Branch Scalability**: Dynamic branch context routing, localized inventory isolation, and role-based staff isolation.
+* **💳 Automated Payment Reconciliation**: Seamless local & global payment provider integration with Chapa (Telebirr, CBE Birr, cards) featuring automated webhook signature verification.
+
+---
+
+## 🗺️ Architectural Ecosystem & Complete System Flow
+
+```mermaid
+flowchart TD
+    subgraph Clients[" Omnichannel Client Layer "]
+        CUST["📱 Customer Web & Mobile (PWA)"]
+        POS["💻 Cashier POS Terminal"]
+        KDS["🍳 Kitchen & Barista Station (KDS)"]
+        ADMIN["📊 Executive & Operations Portal"]
+    end
+
+    subgraph Gateway[" API Gateway & Security "]
+        CORS["CORS & Origin Guard"]
+        AUTH_GUARD["Dual-Mode Auth Guard\n(Bearer Token + HttpOnly Cookies)"]
+        SWAGGER["Interactive Swagger Docs (/api/docs)"]
+    end
+
+    subgraph CoreEngine[" NestJS Core Micro-Services Engine "]
+        AUTH_SRV["Auth & Multi-Role RBAC\n(Customer, Cashier, Waiter, Kitchen, Barista, Admin)"]
+        ORDER_SRV["Order Lifecycle & State Machine"]
+        INV_SRV["Branch Inventory & Stock Movements"]
+        PAY_SRV["Payment Gateway & Webhook Manager (Chapa)"]
+        AI_SRV["AI Assistant (LLaMA 3.1 + Redis Memory)"]
+    end
+
+    subgraph RealTime[" Real-Time Event Dispatch "]
+        SOCKET["Socket.IO Gateway\n(Room-based: kitchen.join, order.join)"]
+    end
+
+    subgraph DataPersistence[" Enterprise Storage & Cloud "]
+        PRISMA["Prisma ORM & Connection Pooling"]
+        NEON["Neon Serverless PostgreSQL (Pooler & Direct)"]
+        UPSTASH["Upstash Redis (Session & AI Cache)"]
+        CLOUDINARY["Cloudinary CDN (Optimized Media Assets)"]
+        RESEND["Resend API (Transactional Notifications)"]
+    end
+
+    Clients --> Gateway
+    Gateway --> CoreEngine
+    CoreEngine <--> SOCKET
+    SOCKET --> Clients
+    CoreEngine --> DataPersistence
+```
+
+---
+
+## 📸 Production API Showcase & Testing
+
+### 1. Interactive Swagger Documentation (`/api/docs`)
+Comprehensive, self-documenting RESTful interface with strict OpenAPI specification, bearer token authentication testing, and granular domain grouping.
+
+<p align="center">
+  <img src="docs/screenshots/swagger-api-docs.png" width="95%" alt="Smart Cafe Swagger Interactive Documentation" />
 </p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### 2. Multi-Role Staff Onboarding & Branch Scoping
+Admin-controlled staff creation endpoint automatically generates scoped employee accounts (`cashier`, `waiter`, `kitchen`, `barista`, `manager`) tied directly to assigned physical branch locations.
 
-## Project setup
+<p align="center">
+  <img src="docs/screenshots/postman-create-staff.png" width="95%" alt="Create Staff Postman Workflow" />
+</p>
 
+---
+
+### 3. Dual-Mode High-Speed Authentication
+Bulletproof authentication pipeline issuing concurrent `HttpOnly` security cookies and structured Bearer JSON responses to support cross-origin web apps, mobile apps, and privacy browsers without dropped sessions.
+
+<p align="center">
+  <img src="docs/screenshots/postman-auth-login.png" width="95%" alt="Authentication & Session Issuance" />
+</p>
+
+---
+
+## ⚡ Core Business Modules & Operational Flows
+
+### 1. 🍽️ Smart Order Lifecycle & Real-Time Stations (KDS)
+* **Creation**: Customers place orders online or via waiters on floor tablets.
+* **Real-time Routing**: Orders immediately emit to station-specific Socket.IO rooms (`kitchen.join`, `barista.join`).
+* **State Machine**: Transparent order progression:
+  $$\text{PENDING} \longrightarrow \text{CONFIRMED} \longrightarrow \text{PREPARING} \longrightarrow \text{READY} \longrightarrow \text{COMPLETED}$$
+* **Instant Customer Tracking**: Customers receive real-time preparation status updates on their mobile tracking page without refreshing.
+
+### 2. 💳 Payment Processing & Automated Settlement
+* Integrates directly with **Chapa Payment Gateway** supporting Mobile Money (Telebirr, CBE Birr) and Credit/Debit Cards.
+* **Cryptographic Webhook Handlers**: HMAC SHA-256 signature verification validates authentic provider transactions before updating orders to `PAID`.
+* Cash payments supported via dedicated Cashier POS confirmation interfaces.
+
+### 3. 📦 Multi-Branch Inventory & Recipe Tracking
+* **Automatic Stock Deduction**: As orders transition to preparation, ingredient and product quantities decrement automatically.
+* **Low-Stock Alerts**: Alerts notify branch managers when essential cafe supplies drop below reorder thresholds.
+* **Movement Auditing**: Complete historical trail of all stock additions, waste write-offs, and transfers between branches.
+
+### 4. 🤖 AI Conversational Barista
+* Powered by **LLaMA 3.1** via Groq API.
+* Context-aware food and beverage recommendations tailored to dietary preferences, customer mood, and popular branch specials.
+* Redis-backed conversation memory preserves chat continuity across customer sessions.
+
+---
+
+## 🛠️ Technology Stack
+
+| Domain | Technology / Service |
+| :--- | :--- |
+| **Framework** | [NestJS 11](https://nestjs.com/) (Modular Architecture) |
+| **Language** | [TypeScript](https://www.typescriptlang.org/) |
+| **ORM** | [Prisma 7.8](https://www.prisma.io/) with `@prisma/adapter-pg` |
+| **Database** | [Neon Serverless PostgreSQL](https://neon.tech/) with pooled connections |
+| **In-Memory Store** | [Upstash Redis](https://upstash.com/) (Serverless Key-Value & AI Memory) |
+| **Real-Time** | [Socket.IO](https://socket.io/) (Bi-directional WebSocket rooms) |
+| **Payment Gateway** | [Chapa API](https://chapa.co/) |
+| **AI Inference** | [Groq Cloud](https://groq.com/) (LLaMA 3.1 8B Instant) |
+| **Transactional Email** | [Resend](https://resend.com/) |
+| **Media & Images** | [Cloudinary](https://cloudinary.com/) Cloud Storage |
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone & Install Dependencies
 ```bash
-$ pnpm install
+git clone https://github.com/Moges741/smart-cafe-be.git
+cd smart-cafe-be
+pnpm install
 ```
 
-## Image storage setup
+### 2. Environment Configuration
+Create a `.env` file in the root directory:
+```env
+# Database (Neon PostgreSQL)
+DATABASE_URL="postgresql://user:pass@ep-name-pooler.c-12.us-east-1.aws.neon.tech/smartcafe?sslmode=verify-full&connect_timeout=15"
+DIRECT_URL="postgresql://user:pass@ep-name.c-12.us-east-1.aws.neon.tech/smartcafe?sslmode=require"
 
-Product and category images are stored in Cloudinary from the backend.
+# Server Configuration
+PORT=4000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
 
-Add these environment variables before starting the app:
+# Security & JWT
+JWT_SECRET=your_ultra_secure_jwt_secret_key
+JWT_EXPIRES_IN=1h
+JWT_REFRESH_SECRET=your_ultra_secure_refresh_key
+JWT_REFRESH_EXPIRES_IN=30d
 
-- `CLOUDINARY_CLOUD_NAME`
-- `CLOUDINARY_API_KEY`
-- `CLOUDINARY_API_SECRET`
-- `CLOUDINARY_FOLDER` is optional, and defaults to the `smart-cafe` folder prefix
+# Redis (Upstash)
+REDIS_URL="rediss://default:token@pumped-seasnail-78505.upstash.io:6379"
 
-Use the following image endpoints from the frontend or admin UI:
+# Payment (Chapa)
+CHAPA_SECRET_KEY=CHASECK_TEST-xxxx
+CHAPA_BASE_URL=https://api.chapa.co/v1
+CHAPA_WEBHOOK_SECRET=your_webhook_secret
 
-- `POST /api/v1/products/:id/images` with `coverImage` plus optional `galleryImages[]`
-- `PATCH /api/v1/categories/:id/image` with a single `image` file
+# AI (Groq)
+GROQ_API_KEY=gsk_xxxx
+GROQ_MODEL=llama-3.1-8b-instant
 
-The product detail response now includes an ordered `images` array, while `imageUrl` remains the primary image for cards and listings.
+# Cloudinary Media
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_key
+CLOUDINARY_API_SECRET=your_secret
 
-## AI session storage
-
-The AI ordering flow stores conversation state in Redis. For deployment, set `REDIS_URL` to the Upstash connection string (for example `rediss://...`). If `REDIS_URL` is missing, the app falls back to in-memory sessions, which means AI chats will not survive a restart.
-
-## Compile and run the project
-
-```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+# Email (Resend)
+RESEND_API_KEY=re_xxxx
+RESEND_FROM_EMAIL=noreply@yourdomain.com
 ```
 
-## Run tests
-
+### 3. Database Migration & Prisma Generation
 ```bash
-# unit tests
-$ pnpm run test
+# Push schema changes to Neon PostgreSQL
+pnpm prisma db push
 
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+# Generate type-safe Prisma client
+pnpm prisma generate
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
+### 4. Run the Engine
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+# Start development server with hot-reload
+pnpm run start:dev
+
+# Build for production
+pnpm run build
+
+# Start production server
+pnpm run start:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 5. Access Interactive Documentation
+Once the server is running, navigate to:
+```
+http://localhost:4000/api/docs
+```
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+## 🔒 Security Best Practices Implemented
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+* **Strict Input Validation**: Global `ValidationPipe` with automatic whitelist and non-whitelisted property rejection (`forbidNonWhitelisted: true`).
+* **Cryptographic Passwords**: Strong `bcrypt` password hashing with dynamic work factors.
+* **Role-Based Access Control (RBAC)**: Custom `@Roles()` decorator and `RolesGuard` protecting endpoints based on system privileges.
+* **Connection Resilience**: Pool keep-alive timers with cold-start tolerance for Neon Serverless instances.
+* **Cross-Site Protection**: Configurable CORS supporting production frontends (`come-mrcafe.vercel.app`), local development origins, and credential transmission.
 
-## Support
+---
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+<p align="center">
+  <sub>Built with care for modern restaurants, cafes, and hospitality businesses.</sub>
+</p>
